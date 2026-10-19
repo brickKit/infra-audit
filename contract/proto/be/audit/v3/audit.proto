@@ -1,0 +1,84 @@
+// The audit component's system surface: every component's SDK hands over its local audit records and reads the
+// backed-up watermark before deleting them. Only the envelope is protobuf; a record travels as its canonical JSON
+// bytes (be.audit.record, D76) with its digest beside it. Rules: the assembly project's protocol 03 and protocol 14
+// (epochs and fork points), the component protocol's chapter 08 (P8.19-P8.23); the audit component's obligations are
+// in contract/README.md.
+syntax = "proto3";
+
+package be.audit.v3;
+
+option go_package = "github.com/brickKit/infra-audit/contract/v3/gen/go/be/audit/v3;auditv3";
+
+// IntakeService takes audit records and tells how far they are backed up.
+service IntakeService {
+  // Submit stores records idempotently by ID and returns a receipt for each. Callers: every component, through
+  // its SDK's transfer work item, with its service identity.
+  rpc Submit(SubmitRequest) returns (SubmitResponse);
+  // Watermark returns the backed-up watermark; a component deletes a local row only once its receipt is covered.
+  rpc Watermark(WatermarkRequest) returns (WatermarkResponse);
+}
+
+// Item is one local audit row as it is sent.
+message Item {
+  // The record's ID (be.audit.record's id).
+  string id = 1;
+  // The production sequence in the source component, within epoch (P8.20).
+  int64 seq = 2;
+  // The source database's epoch, "<deployment recovery generation>.<timeline>".
+  string epoch = 3;
+  // P8.8 over record, record type be.audit.record, major 1.
+  string digest = 4;
+  // The canonical bytes of the be.audit.record, exactly as stored with the row.
+  bytes record = 5;
+}
+
+message SubmitRequest {
+  // In ID order, at most 500.
+  repeated Item items = 1;
+}
+
+// ReceiptStatus is what happened to one item.
+enum ReceiptStatus {
+  RECEIPT_STATUS_UNSPECIFIED = 0;
+  // Stored now, or stored before with the same digest (the original receipt is returned).
+  RECEIPT_STATUS_RECEIVED = 1;
+  // Stored before with another digest: refused and reported as an integrity event; the source stops sending it.
+  RECEIPT_STATUS_CONFLICT = 2;
+  // The bytes are not a valid be.audit.record (schema, canonical form, digest, or an id other than the item's):
+  // refused and reported; the source stops sending it, as for a conflict.
+  RECEIPT_STATUS_INVALID = 3;
+}
+
+message Receipt {
+  string id = 1;
+  ReceiptStatus status = 2;
+  // RECEIPT_STATUS_RECEIVED: the audit database's epoch and the storage sequence the record got in it.
+  string epoch = 3;
+  int64 seq = 4;
+  // RECEIPT_STATUS_RECEIVED: the digest of the source's chain up to this record.
+  string chain = 5;
+}
+
+message SubmitResponse {
+  // One receipt for every item, in the order of the items.
+  repeated Receipt receipts = 1;
+}
+
+message WatermarkRequest {}
+
+// Ancestor is an older epoch on the audit database's current history and its fork point.
+message Ancestor {
+  string epoch = 1;
+  // The last storage sequence of that epoch kept in the current history.
+  int64 fork = 2;
+}
+
+message WatermarkResponse {
+  // The audit database's current epoch.
+  string epoch = 1;
+  // The highest storage sequence of epoch contained in a completed backup.
+  int64 seq = 2;
+  repeated Ancestor ancestors = 3;
+  // Whether a backup has completed in epoch (receipts of ancestors are covered only after one).
+  bool backed_up_in_epoch = 4;
+}
