@@ -5,7 +5,7 @@ package member
 // The audit component against PostgreSQL over its real surfaces: a source component's records sent over mTLS with
 // the SDK's own sender, the receipts, the watermark, a stop and restart, and the protected query (be-sdk-go's
 // sectest gives the certificates, tokens and the authorization member the query is guarded by). Needs
-// AUDIT_IT_PG_PASSWORD (the postgres superuser of be-postgres); missing, it fails. The member listens on 18206 (user)
+// AUDIT_IT_PG_PASSWORD (the postgres superuser of be-postgres); missing, it fails. The member listens on 28206 (user)
 // and 9206 (system). Run: go test -tags integration ./member/
 
 import (
@@ -13,9 +13,11 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -34,7 +36,7 @@ import (
 )
 
 const (
-	itPort   = "18206"
+	itPort   = "28206"
 	itBase   = "http://localhost:" + itPort
 	itSystem = "localhost:9206"
 	itSchema = "audit_it"
@@ -64,6 +66,7 @@ func TestAuditEndToEnd(t *testing.T) {
 
 	w := sectest.New(t)
 	w.GrantAll(sectest.Alice, Definitions())
+	portFree(t, itPort, itSystem)
 	env := w.Env(t, ID)
 	for k, v := range map[string]string{"COMPONENT_ID": ID, "COMPONENT_VERSION": Version, "PORT": itPort, "STOP_DRAIN_DELAY": "50ms",
 		"PG_HOST": "localhost", "PG_DATABASE": itDB, "PG_USER": "postgres", "PG_PASSWORD": pgPassword, "PG_SCHEMA": itSchema,
@@ -189,4 +192,17 @@ func TestAuditEndToEnd(t *testing.T) {
 	require.NoError(t, err)
 	resp.Body.Close()
 	assert.Equal(t, 404, resp.StatusCode, "Bob holds no grant to read the audit records: not visible (P8.16)")
+}
+
+// portFree fails at once when a port the member needs is taken: a running cell (host ports 18xxx) or another member
+// would answer in its place, and the test would assert against another process.
+func portFree(t *testing.T, addrs ...string) {
+	for _, a := range addrs {
+		if !strings.Contains(a, ":") {
+			a = "localhost:" + a
+		}
+		ln, err := net.Listen("tcp", a)
+		require.NoError(t, err, "port %s is taken: is a cell or another member running?", a)
+		_ = ln.Close()
+	}
 }
