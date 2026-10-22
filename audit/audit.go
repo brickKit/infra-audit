@@ -2,7 +2,7 @@
 // the system surface, stores them idempotently by source and ID with receipts, tells how far they are backed up,
 // and answers queries (protocol 03; contract/README.md). Step 5 of the representative deployment experiment: the
 // evidence store and the registration of backups come with protocol 15.
-package member
+package audit
 
 import (
 	"context"
@@ -30,7 +30,7 @@ import (
 // Identity of the component, its resources and operations.
 const (
 	ID          = "infra/audit"
-	Version     = "3.0.2"
+	Version     = "3.0.3"
 	GRPCPort    = 9206
 	Records     = "infra.audit.record"
 	OpRead      = "infra.audit.record.read"

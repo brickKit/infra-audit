@@ -1,6 +1,6 @@
 //go:build integration
 
-package member
+package audit
 
 // The audit component against PostgreSQL over its real surfaces: a source component's records sent over mTLS with
 // the SDK's own sender, the receipts, the watermark, a stop and restart, and the protected query (be-sdk-go's
@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/brickKit/be-sdk-go/v3/audit"
+	sdkaudit "github.com/brickKit/be-sdk-go/v3/audit"
 	"github.com/brickKit/be-sdk-go/v3/canon"
 	"github.com/brickKit/be-sdk-go/v3/config"
 	"github.com/brickKit/be-sdk-go/v3/ids"
@@ -44,12 +44,12 @@ const (
 )
 
 // wire is one record as the SDK sends it: canonical bytes stored with the row, its digest, the source's sequence.
-func wire(t *testing.T, seq int64, op string) audit.Wire {
+func wire(t *testing.T, seq int64, op string) sdkaudit.Wire {
 	id := ids.New().String()
 	raw, digest, err := records.Seal("be.audit.record", map[string]any{"id": id, "occurred_at": canon.Time(time.Now()),
 		"category": "business_change", "operation": op, "outcome": "succeeded", "actor": sectest.Alice})
 	require.NoError(t, err)
-	return audit.Wire{ID: id, Seq: seq, Epoch: "1.1", Digest: digest, Record: raw}
+	return sdkaudit.Wire{ID: id, Seq: seq, Epoch: "1.1", Digest: digest, Record: raw}
 }
 
 func TestAuditEndToEnd(t *testing.T) {
@@ -103,8 +103,8 @@ func TestAuditEndToEnd(t *testing.T) {
 	conn, err := grpc.NewClient(itSystem, grpc.WithTransportCredentials(credentials.NewTLS(tls.ClientConfig(ID))))
 	require.NoError(t, err)
 	defer conn.Close()
-	sender := audit.GRPCSender{Conn: conn}
-	send := func(ws ...audit.Wire) []audit.Receipt {
+	sender := sdkaudit.GRPCSender{Conn: conn}
+	send := func(ws ...sdkaudit.Wire) []sdkaudit.Receipt {
 		sctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
 		rs, err := sender.Send(sctx, ws)
@@ -114,7 +114,7 @@ func TestAuditEndToEnd(t *testing.T) {
 	}
 
 	// three records: received in order, storage sequences 1-3, the chain over their digests
-	batch := []audit.Wire{wire(t, 1, "demo.order.create"), wire(t, 2, "demo.order.confirm"), wire(t, 3, "demo.order.ship")}
+	batch := []sdkaudit.Wire{wire(t, 1, "demo.order.create"), wire(t, 2, "demo.order.confirm"), wire(t, 3, "demo.order.ship")}
 	rs := send(batch...)
 	chain := ""
 	for i, r := range rs {
@@ -131,7 +131,7 @@ func TestAuditEndToEnd(t *testing.T) {
 	raw, digest, err := records.Seal("be.audit.record", map[string]any{"id": batch[0].ID, "occurred_at": canon.Time(time.Now()),
 		"category": "business_change", "operation": "demo.order.cancel", "outcome": "succeeded"})
 	require.NoError(t, err)
-	other := audit.Wire{ID: batch[0].ID, Seq: 4, Epoch: "1.1", Digest: digest, Record: raw}
+	other := sdkaudit.Wire{ID: batch[0].ID, Seq: 4, Epoch: "1.1", Digest: digest, Record: raw}
 	broken := wire(t, 4, "demo.order.cancel")
 	broken.Digest = batch[1].Digest
 	misnamed := wire(t, 4, "demo.order.cancel")
@@ -153,7 +153,7 @@ func TestAuditEndToEnd(t *testing.T) {
 	// the audit component stops and comes back: the source sends what it held, and the earlier records stay as they were
 	stop()
 	sctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	_, err = sender.Send(sctx, []audit.Wire{wire(t, 7, "demo.order.archive")})
+	_, err = sender.Send(sctx, []sdkaudit.Wire{wire(t, 7, "demo.order.archive")})
 	cancel()
 	assert.Error(t, err, "the audit component is down")
 	stop = start()
@@ -162,7 +162,7 @@ func TestAuditEndToEnd(t *testing.T) {
 	require.Eventually(t, func() bool { // the source's transfer job retries every 5 s; the channel reconnects
 		sctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
-		rs, err = sender.Send(sctx, []audit.Wire{held, batch[0]})
+		rs, err = sender.Send(sctx, []sdkaudit.Wire{held, batch[0]})
 		return err == nil
 	}, 15*time.Second, 200*time.Millisecond)
 	assert.Equal(t, "received", rs[0].Status)

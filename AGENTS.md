@@ -1,19 +1,20 @@
 # infra/audit
 
-审计组件的代码。先读 `BRICKKIT.md`；依据是装配项目 be-assembly-standard 的协议 03（转运与回执）、协议 14（纪元与分叉点）、协议 15（证据存储），以及本仓库 `contract/README.md`（审计组件的义务）。
+审计组件的代码。用法与边界在 `BRICKKIT.md`，为什么这样设计（术语、数据、规则、实现状态、未决问题）在 [docs/design.md](docs/design.md)；依据是装配项目 be-assembly-standard 的协议 03（转运与回执）、协议 14（纪元与分叉点）、协议 15（证据存储），以及本仓库 `contract/README.md`（审计组件的义务）。
 
 ## 代码地图
 
 | 位置 | 内容 |
 | --- | --- |
-| `member/member.go` | 组件定义、系统面（接收与水位）、用户面（查询） |
-| `member/migrations/` | 表：记录、存储计数、纪元历史、来源、备份 |
+| `audit/audit.go` | 组件定义、系统面（接收与水位）、用户面（查询） |
+| `audit/migrations/` | 表：记录、存储计数、纪元历史、来源、备份 |
 | `contract/` | 本组件发布的契约，是一个单独的模块 |
+| `docs/design.md` | 设计：术语、数据、规则、命令、实现状态、未决问题 |
 
 ## 构建与测试
 
 - `go test ./...`：单元测试，覆盖链摘要与合并安全。
-- `go test -tags integration ./member/`：
+- `go test -tags integration ./audit/`：
   - 依赖：本机的 PostgreSQL（环境变量 `AUDIT_IT_PG_PASSWORD`），以及 be-sdk-go 的 `sectest` 测试部署；
   - 覆盖：经 SDK 自己的发送器转运；幂等、冲突、不合格与空位；链摘要；水位；停下再起；受授权保护的查询。
 - `brickkit lint`

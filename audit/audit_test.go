@@ -1,4 +1,4 @@
-package member
+package audit
 
 import (
 	"testing"

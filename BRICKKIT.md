@@ -11,7 +11,7 @@
 
 ## 部署前准备
 
-- 数据库：自己的 schema、运行角色与属主角色（装配项目注册表的 `infra_audit`）。高可用部署全部写入同步提交；回执只在提交之后给出。
+- 数据库：PostgreSQL 16 及以上；schema `infra_audit`，属主角色 `infra_audit_owner`（只供迁移）与运行角色 `infra_audit_rw`，名字来自装配项目的注册表。三者由部署方在第一次启动前建好（be-assembly-standard 的 `make db-init` 按装配进项目的组件配置生成并执行）；表由本组件的迁移建。高可用部署全部写入同步提交；回执只在提交之后给出。
 - 部署的服务证书（`SERVICE_TLS_*`）。系统面只接受 mTLS，部署里每个组件都可以调用它的两个系统方法。
 - 身份与授权（`IAM_*`、`AUTHZ_GRPC_URL`、`DEPLOYMENT_ID`）：查询受授权保护。
 - `AUDIT_GRPC_URL` 指向本组件自己的系统面（`$endpoint:infra/audit:grpc`）：本组件自己的审计记录也走同一个入口。
