@@ -3,7 +3,7 @@ module github.com/brickKit/infra-audit/v3
 go 1.27.0
 
 require (
-	github.com/brickKit/be-sdk-go/v3 v3.0.0-alpha.34
+	github.com/brickKit/be-sdk-go/v3 v3.0.0-alpha.35
 	github.com/brickKit/infra-audit/contract/v3 v3.0.0-alpha.1
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/stretchr/testify v1.12.1
