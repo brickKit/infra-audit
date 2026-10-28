@@ -30,7 +30,7 @@ import (
 // Identity of the component, its resources and operations.
 const (
 	ID          = "infra/audit"
-	Version     = "3.0.7"
+	Version     = "3.0.8"
 	GRPCPort    = 9206
 	Records     = "infra.audit.record"
 	OpRead      = "infra.audit.record.read"

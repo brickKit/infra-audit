@@ -4,7 +4,7 @@ kind: Component
 metadata:
   id: infra/audit
   name: Audit
-  version: 3.0.7
+  version: 3.0.8
   description: "The audit component: every component's audit records taken over the system surface, idempotently by source and ID, with receipts, the backed-up watermark and the query; the evidence store comes with protocol 15"
   repository: https://github.com/brickKit/infra-audit
 
