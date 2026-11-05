@@ -4,7 +4,7 @@ kind: Component
 metadata:
   id: infra/audit
   name: Audit
-  version: 3.0.21
+  version: 3.0.22
   description: "The audit component: every component's audit records taken over the system surface, idempotently by source and ID, with receipts, the backed-up watermark and the query; the evidence store comes with protocol 15"
   repository: https://github.com/brickKit/infra-audit
 
@@ -40,7 +40,7 @@ configSchema:
       description: a duration (e.g. 2s, 500ms); SDK default 86400s
       type: string
     AUDIT_EVIDENCE_READERS:
-      description: the components that may list the evidence (comma-separated component IDs); default ops/recover, the recovery tool; SDK default ops/recover
+      description: the components that may list the evidence and the audit records (comma-separated component IDs); default ops/recover, the recovery tool; SDK default ops/recover
       type: string
     AUDIT_GRPC_URL:
       description: 'process-level; for this component its own system surface ($endpoint:infra/audit:grpc): its own audit records go through the same intake; process-level: the same for every member of a shell'

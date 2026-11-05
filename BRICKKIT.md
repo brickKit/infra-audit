@@ -34,11 +34,11 @@
 | `DEPLOYMENT_ID`、`IAM_ISSUER`、`IAM_JWKS_URL`、`AUTHZ_GRPC_URL`、`SERVICE_TLS_CERT_FILE`、`SERVICE_TLS_KEY_FILE`、`SERVICE_TLS_CA_FILE`（必填） | 受保护的查询与 mTLS 的系统面要用 |
 | `PG_HOST`、`PG_DATABASE`、`PG_USER`、`PG_PASSWORD`、`PG_SCHEMA`（必填） | 自己的数据库，密码是密钥；迁移另用 `PG_OWNER_USER`、`PG_OWNER_PASSWORD` |
 | `AUDIT_CHAIN_CHECK_INTERVAL` | 链校验的间隔（3.0.20 起），默认 24 小时；每次读全部记录，记录多时按磁盘读取的代价调长 |
-| `AUDIT_EVIDENCE_READERS` | 能列出证据的组件（逗号分隔的组件 ID），默认 `ops/recover`（恢复工具的服务身份） |
+| `AUDIT_EVIDENCE_READERS` | 能列出证据与审计记录的组件（逗号分隔的组件 ID），默认 `ops/recover`（恢复工具的服务身份） |
 
 ## 契约索引
 
-- 系统面：本仓库 `contract/` 的 `be.audit.v3.IntakeService/Submit` 与 `be.audit.v3.IntakeService/Watermark`；证据存储的 `be.audit.v3.EvidenceService/Append`（任何组件，只交自己的）与 `List`（`AUDIT_EVIDENCE_READERS`），契约 `contract/v3.0.0-alpha.2` 起。模块 `github.com/brickKit/infra-audit/contract/v3`，标签 `contract/v3.…`；审计组件的义务写在 `contract/README.md`。
+- 系统面：本仓库 `contract/` 的 `be.audit.v3.IntakeService/Submit` 与 `be.audit.v3.IntakeService/Watermark`；证据存储的 `be.audit.v3.EvidenceService/Append`（任何组件，只交自己的）与 `List`（`AUDIT_EVIDENCE_READERS`），契约 `contract/v3.0.0-alpha.2` 起；审计记录的 `be.audit.v3.RecordService/List`（同样的读者，整套恢复的损失范围），契约 `contract/v3.0.0-alpha.3` 起。模块 `github.com/brickKit/infra-audit/contract/v3`，标签 `contract/v3.…`；审计组件的义务写在 `contract/README.md`。
 - 用户面：`GET /api/audit/records?source=&operation=&limit=`，操作是 `infra.audit.record.read`，按收到的时间从新到旧，最多 500 条。
 
 ## 外壳声明

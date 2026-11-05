@@ -53,6 +53,8 @@
 
 ## 实现状态
 
+3.0.22（底层先行第 4 项 T10 的级联）：be-sdk-go alpha.93。审计记录的系统方法 `RecordService.List`（契约 alpha.3，操作 `infra.audit.record.list`，读者同 `AUDIT_EVIDENCE_READERS`）：按发生时刻（不早于 `since`）与类别列出，带来源、来源纪元与产生序号，按存储位置（审计库纪元/存储序号）分页，每页至多 500 条；按接收时刻的索引先缩小（接收早于发生至多一小时），按发生时刻裁决。整套恢复第 9 步的损失范围与审计损失由恢复工具据此求。途中：不带类别时 pgx 把空切片发成 NULL，曾把全部记录筛掉，集成测试抓到后改为 `coalesce(cardinality(...), 0) = 0`。
+
 3.0.21（底层先行第 4 项 T10 的级联）：be-sdk-go alpha.91。整套恢复的核对（`CheckService`，操作 `infra.audit.system.recover`，新的 `infra.audit.system` 资源；只许恢复工具调用）：SDK 自带的三项检查；审计存储不随其他组件回退（恢复工具不复制它的 schema），所以本组件自己审计过的对象一律答“还在”；清单的 `RECOVERY_PHASE` 加 `verifying`、`read_only`。
 
 3.0.20（底层先行第 4 项 T4e）：协议 03 的 AU13 与 AU14。查询的操作声明为必需审计；查询按调用者的授予裁剪字段（`sdkauthz.Mask`，没读权的置空并列在 `_masked`），返回之前先写一条敏感读取的审计（写不进就不答）。链校验：单例作业（`AUDIT_CHAIN_CHECK_INTERVAL`，起始 24 小时）逐个来源按（审计库纪元，存储序号）读全部记录，核对字节与摘要、重算链、对照链头，第一个断点写进 `audit_chain_break`（迁移 0003）并记错误级日志；每次都读全部（从上次核对过的地方接着读就看不到更早的记录被改）。保留期删除与法律保全仍没有做，归第 5 项（A143），在那之前不删除任何记录。SDK alpha.88。

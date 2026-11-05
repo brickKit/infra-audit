@@ -8,6 +8,8 @@
 | --- | --- |
 | `audit/audit.go` | 组件定义、配置键、系统面（接收与水位）、用户面（查询：按调用者的授予裁剪字段，查询本身先写一条敏感读取的审计，AU13） |
 | `audit/chain.go` | 链校验（协议 03 的 AU14）：单例作业按 `AUDIT_CHAIN_CHECK_INTERVAL` 逐个来源按存储顺序核对每条记录的字节与摘要、重算链、对照链头；断了就写 `audit_chain_break` 并记错误级日志 `audit_chain_broken` |
+| `audit/records.go` | `RecordService.List`（契约 alpha.3）：读者按发生时刻与类别列出审计记录，带来源纪元与产生序号，按存储位置分页（整套恢复第 9 步） |
+| `audit/recovery.go` | 整套恢复的核对：本组件审计过的对象一律答“还在”（审计存储不随其他组件回退） |
 | `audit/evidence.go` | 证据存储（P12.9–P12.13）：`EvidenceService.Append` 的核对与只收一次、`List` |
 | `audit/migrations/` | 表：记录、存储计数、纪元历史、来源、备份、链的断点 |
 | `contract/` | 本组件发布的契约，是一个单独的模块 |

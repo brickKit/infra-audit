@@ -33,7 +33,7 @@ import (
 // Identity of the component, its resources and operations.
 const (
 	ID          = "infra/audit"
-	Version     = "3.0.21"
+	Version     = "3.0.22"
 	GRPCPort    = 9206
 	Records     = "infra.audit.record"
 	OpRead      = "infra.audit.record.read"
@@ -48,7 +48,9 @@ const (
 	OpSystem    = "infra.audit.system.read"
 	// OpRecover is a full recovery's checks (be-protocol chapter 14: the recovery tool only).
 	OpRecover = "infra.audit.system.recover"
-	MaxBatch    = 500
+	// OpListRecords is RecordService.List: the configured readers read the audit records (a full recovery's step 9).
+	OpListRecords = "infra.audit.record.list"
+	MaxBatch      = 500
 	// DefaultChainCheck is how often the chains are verified by default (AU14): every record is read each time.
 	DefaultChainCheck = 24 * time.Hour
 	// DefaultEvidenceReader is the recovery tool's service identity.
@@ -58,7 +60,7 @@ const (
 // Keys are the component's own configuration keys.
 func Keys() []config.Key {
 	return []config.Key{
-		// the components that may list the evidence (P12.13), comma-separated component IDs; by default the recovery
+		// the components that may list the evidence (P12.13) and the audit records (RecordService), comma-separated component IDs; by default the recovery
 		// tool's service identity (be-ops recover, A136)
 		{Name: "AUDIT_EVIDENCE_READERS", Type: config.String, Default: DefaultEvidenceReader},
 		// how often every source's chain is verified (AU14: a record changed or taken out is an integrity event)
@@ -87,6 +89,7 @@ func Definitions() *sdkauthz.Definitions {
 			{Type: System, ViewOperation: OpSystem, Dimensions: none, Fields: map[string]sdkauthz.Field{}}},
 		Operations: []sdkauthz.Operation{
 			{Key: OpRead, ResourceType: Records, Purpose: "special_read", RiskClass: "low", Audit: true}, // AU13
+			{Key: OpListRecords, ResourceType: Records, Purpose: "read", RiskClass: "low"},
 			{Key: IntakeRead, ResourceType: Intake, Purpose: "read", RiskClass: "low"},
 			{Key: OpSubmit, ResourceType: Intake, Purpose: "action", RiskClass: "low", SideEffects: []string{"business_write"}},
 			{Key: OpWatermark, ResourceType: Intake, Purpose: "read", RiskClass: "low"},
@@ -101,7 +104,7 @@ func Definitions() *sdkauthz.Definitions {
 func Definition() component.Definition {
 	return component.Definition{ID: ID, Version: Version, Keys: Keys(), Migrations: migrations(), GRPCPort: GRPCPort, Authz: Definitions(),
 		Recovery: OpRecover,
-		New: func(rt *runtime.Runtime) (component.Module, error) { return &Module{rt: rt}, nil }}
+		New:      func(rt *runtime.Runtime) (component.Module, error) { return &Module{rt: rt}, nil }}
 }
 
 // Module is the audit component.
@@ -125,6 +128,8 @@ func (m *Module) Services(s *grpcx.Services) error {
 	s.Register(&auditv3.EvidenceService_ServiceDesc, m, map[string]grpcx.Method{
 		"Append": {Operation: OpAppend, Callers: []string{grpcx.AnyComponent}},
 		"List":   {Operation: OpList, Callers: readers}})
+	// the audit records for the same readers (a full recovery's loss range, contract alpha.3)
+	s.Register(&auditv3.RecordService_ServiceDesc, recordList{m: m}, map[string]grpcx.Method{"List": {Operation: OpListRecords, Callers: readers}})
 	return nil
 }
 

@@ -9,7 +9,7 @@ import (
 
 // ownKeys are the descriptions of the component's own keys (and of the SDK keys it describes its own way).
 var ownKeys = map[string]string{
-	"AUDIT_EVIDENCE_READERS": "the components that may list the evidence (comma-separated component IDs); default ops/recover, the recovery tool",
+	"AUDIT_EVIDENCE_READERS": "the components that may list the evidence and the audit records (comma-separated component IDs); default ops/recover, the recovery tool",
 	"AUDIT_GRPC_URL":         "process-level; for this component its own system surface ($endpoint:infra/audit:grpc): its own audit records go through the same intake",
 }
 
