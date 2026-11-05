@@ -53,6 +53,8 @@
 
 ## 实现状态
 
+3.0.16：只有 `effective` 与 `general` 带位置（`be-protocol` alpha.74 改正 P12.9：“已取消”的事务没有提交）。
+
 3.0.15（底层先行第 4 项 T4）：证据存储（组件协议 P12.9–P12.13，`audit/evidence.go`，迁移 0002）：`EvidenceService.Append` 与 `List`；表 `audit_evidence` 按（记录身份，阶段）只收一次，存储序号跨纪元只增；记录者即调用者；冲突记完整性事件；读者由 `AUDIT_EVIDENCE_READERS` 限定（默认恢复工具 `ops/recover`）。
 
 此前（实验第 5 步）：接收、回执、链摘要、水位、查询。没有做的：备份完成的登记（所以水位现在答 0）、保留与法律保全，以及协议 03 的几处缺口（装配项目第 4 项计划的 T4e）。

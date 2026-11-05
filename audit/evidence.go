@@ -72,8 +72,8 @@ func parseEvidence(raw []byte, digest string) (evidence, error) {
 		return e, errors.New("an unknown category")
 	case !slices.Contains([]string{"intent", "effective", "cancelled", "general"}, e.Phase):
 		return e, errors.New("an unknown phase")
-	case (e.Phase == "intent") != (e.Position == nil):
-		return e, errors.New("an intent has no position; every other phase has one")
+	case (e.Phase == "effective" || e.Phase == "general") != (e.Position != nil):
+		return e, errors.New("effective and general records carry a position; an intent or a cancelled one does not")
 	case len(e.Object) == 0 || len(e.Change) == 0:
 		return e, errors.New("the object and the change are required")
 	}

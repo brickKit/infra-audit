@@ -5,6 +5,7 @@ package audit
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"os"
@@ -35,9 +36,19 @@ func evidenceRecord(t *testing.T, recorder, id, phase, subject string, change ma
 		"phase": phase, "subject": subject,
 		"object": map[string]any{"type": "demo.order", "id": "0190f3a1-0000-7000-8000-0000000000f1", "version": "3"},
 		"change": change, "at": canon.Time(time.Now())}
-	if phase != "intent" {
+	if phase == "effective" || phase == "general" { // only these commit with the business transaction (P12.9, alpha.74)
 		r["position"] = map[string]any{"epoch": "1.1", "commit_seq": 107}
 	}
+	raw, err := canon.Encode(r)
+	require.NoError(t, err)
+	return &auditv3.Evidence{Record: raw, Digest: canon.DigestBytes("be.evidence.record", 1, raw)}
+}
+
+// withPosition re-seals a record with a position it must not carry.
+func withPosition(t *testing.T, e *auditv3.Evidence) *auditv3.Evidence {
+	var r map[string]any
+	require.NoError(t, json.Unmarshal(e.GetRecord(), &r))
+	r["position"] = map[string]any{"epoch": "1.1", "commit_seq": 9}
 	raw, err := canon.Encode(r)
 	require.NoError(t, err)
 	return &auditv3.Evidence{Record: raw, Digest: canon.DigestBytes("be.evidence.record", 1, raw)}
@@ -120,10 +131,11 @@ func TestTheEvidenceStore(t *testing.T) {
 		evidenceRecord(t, "demo/orders", id2, "intent", bob, map[string]any{"termination": "revoke"}),
 		evidenceRecord(t, "demo/orders", id2, "effective", carol, map[string]any{"termination": "revoke"}), // another subject
 		evidenceRecord(t, "demo/orders", id3, "cancelled", bob, map[string]any{"termination": "revoke"}),   // no intent kept
-		bad)
+		bad,
+		withPosition(t, evidenceRecord(t, "demo/orders", ids.New().String(), "cancelled", bob, map[string]any{"x": "y"}))) // never committed
 	require.NoError(t, err)
-	require.Len(t, rs, 8)
-	want := []auditv3.EvidenceStatus{accepted, duplicate, conflict, accepted, accepted, conflict, accepted, invalid}
+	require.Len(t, rs, 9)
+	want := []auditv3.EvidenceStatus{accepted, duplicate, conflict, accepted, accepted, conflict, accepted, invalid, invalid}
 	for i, r := range rs {
 		assert.Equal(t, want[i], r.GetStatus(), "record %d", i)
 	}
