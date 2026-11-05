@@ -84,6 +84,66 @@ func (ReceiptStatus) EnumDescriptor() ([]byte, []int) {
 	return file_be_audit_v3_audit_proto_rawDescGZIP(), []int{0}
 }
 
+// EvidenceStatus is what happened to one record (P12.10).
+type EvidenceStatus int32
+
+const (
+	EvidenceStatus_EVIDENCE_STATUS_UNSPECIFIED EvidenceStatus = 0
+	// Kept now.
+	EvidenceStatus_EVIDENCE_STATUS_ACCEPTED EvidenceStatus = 1
+	// Kept before with the same digest: the receipt is the original one.
+	EvidenceStatus_EVIDENCE_STATUS_DUPLICATE EvidenceStatus = 2
+	// Another digest under the same (id, phase), or a conclusion that does not match its intent: not kept.
+	EvidenceStatus_EVIDENCE_STATUS_CONFLICT EvidenceStatus = 3
+	// Not a valid record (schema, canonical form, digest): not kept.
+	EvidenceStatus_EVIDENCE_STATUS_INVALID EvidenceStatus = 4
+)
+
+// Enum value maps for EvidenceStatus.
+var (
+	EvidenceStatus_name = map[int32]string{
+		0: "EVIDENCE_STATUS_UNSPECIFIED",
+		1: "EVIDENCE_STATUS_ACCEPTED",
+		2: "EVIDENCE_STATUS_DUPLICATE",
+		3: "EVIDENCE_STATUS_CONFLICT",
+		4: "EVIDENCE_STATUS_INVALID",
+	}
+	EvidenceStatus_value = map[string]int32{
+		"EVIDENCE_STATUS_UNSPECIFIED": 0,
+		"EVIDENCE_STATUS_ACCEPTED":    1,
+		"EVIDENCE_STATUS_DUPLICATE":   2,
+		"EVIDENCE_STATUS_CONFLICT":    3,
+		"EVIDENCE_STATUS_INVALID":     4,
+	}
+)
+
+func (x EvidenceStatus) Enum() *EvidenceStatus {
+	p := new(EvidenceStatus)
+	*p = x
+	return p
+}
+
+func (x EvidenceStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (EvidenceStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_be_audit_v3_audit_proto_enumTypes[1].Descriptor()
+}
+
+func (EvidenceStatus) Type() protoreflect.EnumType {
+	return &file_be_audit_v3_audit_proto_enumTypes[1]
+}
+
+func (x EvidenceStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use EvidenceStatus.Descriptor instead.
+func (EvidenceStatus) EnumDescriptor() ([]byte, []int) {
+	return file_be_audit_v3_audit_proto_rawDescGZIP(), []int{1}
+}
+
 // Item is one local audit row as it is sent.
 type Item struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -495,6 +555,422 @@ func (x *WatermarkResponse) GetBackedUpInEpoch() bool {
 	return false
 }
 
+// Evidence is one evidence record as it travels: its canonical JSON (be.evidence.record) with its digest.
+type Evidence struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The record's canonical JSON bytes.
+	Record []byte `protobuf:"bytes,1,opt,name=record,proto3" json:"record,omitempty"`
+	// sha256:<hex> over "be.evidence.record.v1\n" and the bytes.
+	Digest        string `protobuf:"bytes,2,opt,name=digest,proto3" json:"digest,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Evidence) Reset() {
+	*x = Evidence{}
+	mi := &file_be_audit_v3_audit_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Evidence) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Evidence) ProtoMessage() {}
+
+func (x *Evidence) ProtoReflect() protoreflect.Message {
+	mi := &file_be_audit_v3_audit_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Evidence.ProtoReflect.Descriptor instead.
+func (*Evidence) Descriptor() ([]byte, []int) {
+	return file_be_audit_v3_audit_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *Evidence) GetRecord() []byte {
+	if x != nil {
+		return x.Record
+	}
+	return nil
+}
+
+func (x *Evidence) GetDigest() string {
+	if x != nil {
+		return x.Digest
+	}
+	return ""
+}
+
+type AppendRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// At most 500 records.
+	Records       []*Evidence `protobuf:"bytes,1,rep,name=records,proto3" json:"records,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AppendRequest) Reset() {
+	*x = AppendRequest{}
+	mi := &file_be_audit_v3_audit_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AppendRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AppendRequest) ProtoMessage() {}
+
+func (x *AppendRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_be_audit_v3_audit_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AppendRequest.ProtoReflect.Descriptor instead.
+func (*AppendRequest) Descriptor() ([]byte, []int) {
+	return file_be_audit_v3_audit_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *AppendRequest) GetRecords() []*Evidence {
+	if x != nil {
+		return x.Records
+	}
+	return nil
+}
+
+type EvidenceReceipt struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Id     string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Phase  string                 `protobuf:"bytes,2,opt,name=phase,proto3" json:"phase,omitempty"`
+	Status EvidenceStatus         `protobuf:"varint,3,opt,name=status,proto3,enum=be.audit.v3.EvidenceStatus" json:"status,omitempty"`
+	// ACCEPTED or DUPLICATE: the store's own epoch and sequence the record got (P12.12).
+	Epoch         string `protobuf:"bytes,4,opt,name=epoch,proto3" json:"epoch,omitempty"`
+	Seq           int64  `protobuf:"varint,5,opt,name=seq,proto3" json:"seq,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EvidenceReceipt) Reset() {
+	*x = EvidenceReceipt{}
+	mi := &file_be_audit_v3_audit_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EvidenceReceipt) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EvidenceReceipt) ProtoMessage() {}
+
+func (x *EvidenceReceipt) ProtoReflect() protoreflect.Message {
+	mi := &file_be_audit_v3_audit_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EvidenceReceipt.ProtoReflect.Descriptor instead.
+func (*EvidenceReceipt) Descriptor() ([]byte, []int) {
+	return file_be_audit_v3_audit_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *EvidenceReceipt) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *EvidenceReceipt) GetPhase() string {
+	if x != nil {
+		return x.Phase
+	}
+	return ""
+}
+
+func (x *EvidenceReceipt) GetStatus() EvidenceStatus {
+	if x != nil {
+		return x.Status
+	}
+	return EvidenceStatus_EVIDENCE_STATUS_UNSPECIFIED
+}
+
+func (x *EvidenceReceipt) GetEpoch() string {
+	if x != nil {
+		return x.Epoch
+	}
+	return ""
+}
+
+func (x *EvidenceReceipt) GetSeq() int64 {
+	if x != nil {
+		return x.Seq
+	}
+	return 0
+}
+
+type AppendResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// One receipt for every record, in the order of the records.
+	Receipts      []*EvidenceReceipt `protobuf:"bytes,1,rep,name=receipts,proto3" json:"receipts,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AppendResponse) Reset() {
+	*x = AppendResponse{}
+	mi := &file_be_audit_v3_audit_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AppendResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AppendResponse) ProtoMessage() {}
+
+func (x *AppendResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_be_audit_v3_audit_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AppendResponse.ProtoReflect.Descriptor instead.
+func (*AppendResponse) Descriptor() ([]byte, []int) {
+	return file_be_audit_v3_audit_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *AppendResponse) GetReceipts() []*EvidenceReceipt {
+	if x != nil {
+		return x.Receipts
+	}
+	return nil
+}
+
+type ListRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The position to start after: the store's sequence (0 for the beginning).
+	AfterSeq int64 `protobuf:"varint,1,opt,name=after_seq,json=afterSeq,proto3" json:"after_seq,omitempty"`
+	// Optional filters.
+	Recorder string `protobuf:"bytes,2,opt,name=recorder,proto3" json:"recorder,omitempty"`
+	Category string `protobuf:"bytes,3,opt,name=category,proto3" json:"category,omitempty"`
+	// At most 500; 0 for 500.
+	Limit         int32 `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRequest) Reset() {
+	*x = ListRequest{}
+	mi := &file_be_audit_v3_audit_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRequest) ProtoMessage() {}
+
+func (x *ListRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_be_audit_v3_audit_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRequest.ProtoReflect.Descriptor instead.
+func (*ListRequest) Descriptor() ([]byte, []int) {
+	return file_be_audit_v3_audit_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ListRequest) GetAfterSeq() int64 {
+	if x != nil {
+		return x.AfterSeq
+	}
+	return 0
+}
+
+func (x *ListRequest) GetRecorder() string {
+	if x != nil {
+		return x.Recorder
+	}
+	return ""
+}
+
+func (x *ListRequest) GetCategory() string {
+	if x != nil {
+		return x.Category
+	}
+	return ""
+}
+
+func (x *ListRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+// StoredEvidence is a kept record with its position in the store.
+type StoredEvidence struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Evidence *Evidence              `protobuf:"bytes,1,opt,name=evidence,proto3" json:"evidence,omitempty"`
+	Epoch    string                 `protobuf:"bytes,2,opt,name=epoch,proto3" json:"epoch,omitempty"`
+	Seq      int64                  `protobuf:"varint,3,opt,name=seq,proto3" json:"seq,omitempty"`
+	// When the store received it (its own clock).
+	ReceivedAt    string `protobuf:"bytes,4,opt,name=received_at,json=receivedAt,proto3" json:"received_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StoredEvidence) Reset() {
+	*x = StoredEvidence{}
+	mi := &file_be_audit_v3_audit_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StoredEvidence) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StoredEvidence) ProtoMessage() {}
+
+func (x *StoredEvidence) ProtoReflect() protoreflect.Message {
+	mi := &file_be_audit_v3_audit_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StoredEvidence.ProtoReflect.Descriptor instead.
+func (*StoredEvidence) Descriptor() ([]byte, []int) {
+	return file_be_audit_v3_audit_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *StoredEvidence) GetEvidence() *Evidence {
+	if x != nil {
+		return x.Evidence
+	}
+	return nil
+}
+
+func (x *StoredEvidence) GetEpoch() string {
+	if x != nil {
+		return x.Epoch
+	}
+	return ""
+}
+
+func (x *StoredEvidence) GetSeq() int64 {
+	if x != nil {
+		return x.Seq
+	}
+	return 0
+}
+
+func (x *StoredEvidence) GetReceivedAt() string {
+	if x != nil {
+		return x.ReceivedAt
+	}
+	return ""
+}
+
+type ListResponse struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Records []*StoredEvidence      `protobuf:"bytes,1,rep,name=records,proto3" json:"records,omitempty"`
+	// Set when more may follow: list again after the last record's seq.
+	More          bool `protobuf:"varint,2,opt,name=more,proto3" json:"more,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListResponse) Reset() {
+	*x = ListResponse{}
+	mi := &file_be_audit_v3_audit_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListResponse) ProtoMessage() {}
+
+func (x *ListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_be_audit_v3_audit_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListResponse.ProtoReflect.Descriptor instead.
+func (*ListResponse) Descriptor() ([]byte, []int) {
+	return file_be_audit_v3_audit_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ListResponse) GetRecords() []*StoredEvidence {
+	if x != nil {
+		return x.Records
+	}
+	return nil
+}
+
+func (x *ListResponse) GetMore() bool {
+	if x != nil {
+		return x.More
+	}
+	return false
+}
+
 var File_be_audit_v3_audit_proto protoreflect.FileDescriptor
 
 const file_be_audit_v3_audit_proto_rawDesc = "" +
@@ -524,15 +1000,51 @@ const file_be_audit_v3_audit_proto_rawDesc = "" +
 	"\x05epoch\x18\x01 \x01(\tR\x05epoch\x12\x10\n" +
 	"\x03seq\x18\x02 \x01(\x03R\x03seq\x123\n" +
 	"\tancestors\x18\x03 \x03(\v2\x15.be.audit.v3.AncestorR\tancestors\x12+\n" +
-	"\x12backed_up_in_epoch\x18\x04 \x01(\bR\x0fbackedUpInEpoch*\x85\x01\n" +
+	"\x12backed_up_in_epoch\x18\x04 \x01(\bR\x0fbackedUpInEpoch\":\n" +
+	"\bEvidence\x12\x16\n" +
+	"\x06record\x18\x01 \x01(\fR\x06record\x12\x16\n" +
+	"\x06digest\x18\x02 \x01(\tR\x06digest\"@\n" +
+	"\rAppendRequest\x12/\n" +
+	"\arecords\x18\x01 \x03(\v2\x15.be.audit.v3.EvidenceR\arecords\"\x94\x01\n" +
+	"\x0fEvidenceReceipt\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x05phase\x18\x02 \x01(\tR\x05phase\x123\n" +
+	"\x06status\x18\x03 \x01(\x0e2\x1b.be.audit.v3.EvidenceStatusR\x06status\x12\x14\n" +
+	"\x05epoch\x18\x04 \x01(\tR\x05epoch\x12\x10\n" +
+	"\x03seq\x18\x05 \x01(\x03R\x03seq\"J\n" +
+	"\x0eAppendResponse\x128\n" +
+	"\breceipts\x18\x01 \x03(\v2\x1c.be.audit.v3.EvidenceReceiptR\breceipts\"x\n" +
+	"\vListRequest\x12\x1b\n" +
+	"\tafter_seq\x18\x01 \x01(\x03R\bafterSeq\x12\x1a\n" +
+	"\brecorder\x18\x02 \x01(\tR\brecorder\x12\x1a\n" +
+	"\bcategory\x18\x03 \x01(\tR\bcategory\x12\x14\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\"\x8c\x01\n" +
+	"\x0eStoredEvidence\x121\n" +
+	"\bevidence\x18\x01 \x01(\v2\x15.be.audit.v3.EvidenceR\bevidence\x12\x14\n" +
+	"\x05epoch\x18\x02 \x01(\tR\x05epoch\x12\x10\n" +
+	"\x03seq\x18\x03 \x01(\x03R\x03seq\x12\x1f\n" +
+	"\vreceived_at\x18\x04 \x01(\tR\n" +
+	"receivedAt\"Y\n" +
+	"\fListResponse\x125\n" +
+	"\arecords\x18\x01 \x03(\v2\x1b.be.audit.v3.StoredEvidenceR\arecords\x12\x12\n" +
+	"\x04more\x18\x02 \x01(\bR\x04more*\x85\x01\n" +
 	"\rReceiptStatus\x12\x1e\n" +
 	"\x1aRECEIPT_STATUS_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17RECEIPT_STATUS_RECEIVED\x10\x01\x12\x1b\n" +
 	"\x17RECEIPT_STATUS_CONFLICT\x10\x02\x12\x1a\n" +
-	"\x16RECEIPT_STATUS_INVALID\x10\x032\x9e\x01\n" +
+	"\x16RECEIPT_STATUS_INVALID\x10\x03*\xa9\x01\n" +
+	"\x0eEvidenceStatus\x12\x1f\n" +
+	"\x1bEVIDENCE_STATUS_UNSPECIFIED\x10\x00\x12\x1c\n" +
+	"\x18EVIDENCE_STATUS_ACCEPTED\x10\x01\x12\x1d\n" +
+	"\x19EVIDENCE_STATUS_DUPLICATE\x10\x02\x12\x1c\n" +
+	"\x18EVIDENCE_STATUS_CONFLICT\x10\x03\x12\x1b\n" +
+	"\x17EVIDENCE_STATUS_INVALID\x10\x042\x9e\x01\n" +
 	"\rIntakeService\x12A\n" +
 	"\x06Submit\x12\x1a.be.audit.v3.SubmitRequest\x1a\x1b.be.audit.v3.SubmitResponse\x12J\n" +
-	"\tWatermark\x12\x1d.be.audit.v3.WatermarkRequest\x1a\x1e.be.audit.v3.WatermarkResponseBHZFgithub.com/brickKit/infra-audit/contract/v3/gen/go/be/audit/v3;auditv3b\x06proto3"
+	"\tWatermark\x12\x1d.be.audit.v3.WatermarkRequest\x1a\x1e.be.audit.v3.WatermarkResponse2\x91\x01\n" +
+	"\x0fEvidenceService\x12A\n" +
+	"\x06Append\x12\x1a.be.audit.v3.AppendRequest\x1a\x1b.be.audit.v3.AppendResponse\x12;\n" +
+	"\x04List\x12\x18.be.audit.v3.ListRequest\x1a\x19.be.audit.v3.ListResponseBHZFgithub.com/brickKit/infra-audit/contract/v3/gen/go/be/audit/v3;auditv3b\x06proto3"
 
 var (
 	file_be_audit_v3_audit_proto_rawDescOnce sync.Once
@@ -546,32 +1058,49 @@ func file_be_audit_v3_audit_proto_rawDescGZIP() []byte {
 	return file_be_audit_v3_audit_proto_rawDescData
 }
 
-var file_be_audit_v3_audit_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_be_audit_v3_audit_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_be_audit_v3_audit_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_be_audit_v3_audit_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_be_audit_v3_audit_proto_goTypes = []any{
 	(ReceiptStatus)(0),        // 0: be.audit.v3.ReceiptStatus
-	(*Item)(nil),              // 1: be.audit.v3.Item
-	(*SubmitRequest)(nil),     // 2: be.audit.v3.SubmitRequest
-	(*Receipt)(nil),           // 3: be.audit.v3.Receipt
-	(*SubmitResponse)(nil),    // 4: be.audit.v3.SubmitResponse
-	(*WatermarkRequest)(nil),  // 5: be.audit.v3.WatermarkRequest
-	(*Ancestor)(nil),          // 6: be.audit.v3.Ancestor
-	(*WatermarkResponse)(nil), // 7: be.audit.v3.WatermarkResponse
+	(EvidenceStatus)(0),       // 1: be.audit.v3.EvidenceStatus
+	(*Item)(nil),              // 2: be.audit.v3.Item
+	(*SubmitRequest)(nil),     // 3: be.audit.v3.SubmitRequest
+	(*Receipt)(nil),           // 4: be.audit.v3.Receipt
+	(*SubmitResponse)(nil),    // 5: be.audit.v3.SubmitResponse
+	(*WatermarkRequest)(nil),  // 6: be.audit.v3.WatermarkRequest
+	(*Ancestor)(nil),          // 7: be.audit.v3.Ancestor
+	(*WatermarkResponse)(nil), // 8: be.audit.v3.WatermarkResponse
+	(*Evidence)(nil),          // 9: be.audit.v3.Evidence
+	(*AppendRequest)(nil),     // 10: be.audit.v3.AppendRequest
+	(*EvidenceReceipt)(nil),   // 11: be.audit.v3.EvidenceReceipt
+	(*AppendResponse)(nil),    // 12: be.audit.v3.AppendResponse
+	(*ListRequest)(nil),       // 13: be.audit.v3.ListRequest
+	(*StoredEvidence)(nil),    // 14: be.audit.v3.StoredEvidence
+	(*ListResponse)(nil),      // 15: be.audit.v3.ListResponse
 }
 var file_be_audit_v3_audit_proto_depIdxs = []int32{
-	1, // 0: be.audit.v3.SubmitRequest.items:type_name -> be.audit.v3.Item
-	0, // 1: be.audit.v3.Receipt.status:type_name -> be.audit.v3.ReceiptStatus
-	3, // 2: be.audit.v3.SubmitResponse.receipts:type_name -> be.audit.v3.Receipt
-	6, // 3: be.audit.v3.WatermarkResponse.ancestors:type_name -> be.audit.v3.Ancestor
-	2, // 4: be.audit.v3.IntakeService.Submit:input_type -> be.audit.v3.SubmitRequest
-	5, // 5: be.audit.v3.IntakeService.Watermark:input_type -> be.audit.v3.WatermarkRequest
-	4, // 6: be.audit.v3.IntakeService.Submit:output_type -> be.audit.v3.SubmitResponse
-	7, // 7: be.audit.v3.IntakeService.Watermark:output_type -> be.audit.v3.WatermarkResponse
-	6, // [6:8] is the sub-list for method output_type
-	4, // [4:6] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	2,  // 0: be.audit.v3.SubmitRequest.items:type_name -> be.audit.v3.Item
+	0,  // 1: be.audit.v3.Receipt.status:type_name -> be.audit.v3.ReceiptStatus
+	4,  // 2: be.audit.v3.SubmitResponse.receipts:type_name -> be.audit.v3.Receipt
+	7,  // 3: be.audit.v3.WatermarkResponse.ancestors:type_name -> be.audit.v3.Ancestor
+	9,  // 4: be.audit.v3.AppendRequest.records:type_name -> be.audit.v3.Evidence
+	1,  // 5: be.audit.v3.EvidenceReceipt.status:type_name -> be.audit.v3.EvidenceStatus
+	11, // 6: be.audit.v3.AppendResponse.receipts:type_name -> be.audit.v3.EvidenceReceipt
+	9,  // 7: be.audit.v3.StoredEvidence.evidence:type_name -> be.audit.v3.Evidence
+	14, // 8: be.audit.v3.ListResponse.records:type_name -> be.audit.v3.StoredEvidence
+	3,  // 9: be.audit.v3.IntakeService.Submit:input_type -> be.audit.v3.SubmitRequest
+	6,  // 10: be.audit.v3.IntakeService.Watermark:input_type -> be.audit.v3.WatermarkRequest
+	10, // 11: be.audit.v3.EvidenceService.Append:input_type -> be.audit.v3.AppendRequest
+	13, // 12: be.audit.v3.EvidenceService.List:input_type -> be.audit.v3.ListRequest
+	5,  // 13: be.audit.v3.IntakeService.Submit:output_type -> be.audit.v3.SubmitResponse
+	8,  // 14: be.audit.v3.IntakeService.Watermark:output_type -> be.audit.v3.WatermarkResponse
+	12, // 15: be.audit.v3.EvidenceService.Append:output_type -> be.audit.v3.AppendResponse
+	15, // 16: be.audit.v3.EvidenceService.List:output_type -> be.audit.v3.ListResponse
+	13, // [13:17] is the sub-list for method output_type
+	9,  // [9:13] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_be_audit_v3_audit_proto_init() }
@@ -584,10 +1113,10 @@ func file_be_audit_v3_audit_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_be_audit_v3_audit_proto_rawDesc), len(file_be_audit_v3_audit_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   7,
+			NumEnums:      2,
+			NumMessages:   14,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   2,
 		},
 		GoTypes:           file_be_audit_v3_audit_proto_goTypes,
 		DependencyIndexes: file_be_audit_v3_audit_proto_depIdxs,

@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x17\x62\x65/audit/v3/audit.proto\x12\x0b\x62\x65.audit.v3\"n\n\x04Item\x12\x0e\n\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n\x03seq\x18\x02 \x01(\x03R\x03seq\x12\x14\n\x05\x65poch\x18\x03 \x01(\tR\x05\x65poch\x12\x16\n\x06\x64igest\x18\x04 \x01(\tR\x06\x64igest\x12\x16\n\x06record\x18\x05 \x01(\x0cR\x06record\"8\n\rSubmitRequest\x12\'\n\x05items\x18\x01 \x03(\x0b\x32\x11.be.audit.v3.ItemR\x05items\"\x8b\x01\n\x07Receipt\x12\x0e\n\x02id\x18\x01 \x01(\tR\x02id\x12\x32\n\x06status\x18\x02 \x01(\x0e\x32\x1a.be.audit.v3.ReceiptStatusR\x06status\x12\x14\n\x05\x65poch\x18\x03 \x01(\tR\x05\x65poch\x12\x10\n\x03seq\x18\x04 \x01(\x03R\x03seq\x12\x14\n\x05\x63hain\x18\x05 \x01(\tR\x05\x63hain\"B\n\x0eSubmitResponse\x12\x30\n\x08receipts\x18\x01 \x03(\x0b\x32\x14.be.audit.v3.ReceiptR\x08receipts\"\x12\n\x10WatermarkRequest\"4\n\x08\x41ncestor\x12\x14\n\x05\x65poch\x18\x01 \x01(\tR\x05\x65poch\x12\x12\n\x04\x66ork\x18\x02 \x01(\x03R\x04\x66ork\"\x9d\x01\n\x11WatermarkResponse\x12\x14\n\x05\x65poch\x18\x01 \x01(\tR\x05\x65poch\x12\x10\n\x03seq\x18\x02 \x01(\x03R\x03seq\x12\x33\n\tancestors\x18\x03 \x03(\x0b\x32\x15.be.audit.v3.AncestorR\tancestors\x12+\n\x12\x62\x61\x63ked_up_in_epoch\x18\x04 \x01(\x08R\x0f\x62\x61\x63kedUpInEpoch*\x85\x01\n\rReceiptStatus\x12\x1e\n\x1aRECEIPT_STATUS_UNSPECIFIED\x10\x00\x12\x1b\n\x17RECEIPT_STATUS_RECEIVED\x10\x01\x12\x1b\n\x17RECEIPT_STATUS_CONFLICT\x10\x02\x12\x1a\n\x16RECEIPT_STATUS_INVALID\x10\x03\x32\x9e\x01\n\rIntakeService\x12\x41\n\x06Submit\x12\x1a.be.audit.v3.SubmitRequest\x1a\x1b.be.audit.v3.SubmitResponse\x12J\n\tWatermark\x12\x1d.be.audit.v3.WatermarkRequest\x1a\x1e.be.audit.v3.WatermarkResponseBHZFgithub.com/brickKit/infra-audit/contract/v3/gen/go/be/audit/v3;auditv3b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x17\x62\x65/audit/v3/audit.proto\x12\x0b\x62\x65.audit.v3\"n\n\x04Item\x12\x0e\n\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n\x03seq\x18\x02 \x01(\x03R\x03seq\x12\x14\n\x05\x65poch\x18\x03 \x01(\tR\x05\x65poch\x12\x16\n\x06\x64igest\x18\x04 \x01(\tR\x06\x64igest\x12\x16\n\x06record\x18\x05 \x01(\x0cR\x06record\"8\n\rSubmitRequest\x12\'\n\x05items\x18\x01 \x03(\x0b\x32\x11.be.audit.v3.ItemR\x05items\"\x8b\x01\n\x07Receipt\x12\x0e\n\x02id\x18\x01 \x01(\tR\x02id\x12\x32\n\x06status\x18\x02 \x01(\x0e\x32\x1a.be.audit.v3.ReceiptStatusR\x06status\x12\x14\n\x05\x65poch\x18\x03 \x01(\tR\x05\x65poch\x12\x10\n\x03seq\x18\x04 \x01(\x03R\x03seq\x12\x14\n\x05\x63hain\x18\x05 \x01(\tR\x05\x63hain\"B\n\x0eSubmitResponse\x12\x30\n\x08receipts\x18\x01 \x03(\x0b\x32\x14.be.audit.v3.ReceiptR\x08receipts\"\x12\n\x10WatermarkRequest\"4\n\x08\x41ncestor\x12\x14\n\x05\x65poch\x18\x01 \x01(\tR\x05\x65poch\x12\x12\n\x04\x66ork\x18\x02 \x01(\x03R\x04\x66ork\"\x9d\x01\n\x11WatermarkResponse\x12\x14\n\x05\x65poch\x18\x01 \x01(\tR\x05\x65poch\x12\x10\n\x03seq\x18\x02 \x01(\x03R\x03seq\x12\x33\n\tancestors\x18\x03 \x03(\x0b\x32\x15.be.audit.v3.AncestorR\tancestors\x12+\n\x12\x62\x61\x63ked_up_in_epoch\x18\x04 \x01(\x08R\x0f\x62\x61\x63kedUpInEpoch\":\n\x08\x45vidence\x12\x16\n\x06record\x18\x01 \x01(\x0cR\x06record\x12\x16\n\x06\x64igest\x18\x02 \x01(\tR\x06\x64igest\"@\n\rAppendRequest\x12/\n\x07records\x18\x01 \x03(\x0b\x32\x15.be.audit.v3.EvidenceR\x07records\"\x94\x01\n\x0f\x45videnceReceipt\x12\x0e\n\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n\x05phase\x18\x02 \x01(\tR\x05phase\x12\x33\n\x06status\x18\x03 \x01(\x0e\x32\x1b.be.audit.v3.EvidenceStatusR\x06status\x12\x14\n\x05\x65poch\x18\x04 \x01(\tR\x05\x65poch\x12\x10\n\x03seq\x18\x05 \x01(\x03R\x03seq\"J\n\x0e\x41ppendResponse\x12\x38\n\x08receipts\x18\x01 \x03(\x0b\x32\x1c.be.audit.v3.EvidenceReceiptR\x08receipts\"x\n\x0bListRequest\x12\x1b\n\tafter_seq\x18\x01 \x01(\x03R\x08\x61\x66terSeq\x12\x1a\n\x08recorder\x18\x02 \x01(\tR\x08recorder\x12\x1a\n\x08\x63\x61tegory\x18\x03 \x01(\tR\x08\x63\x61tegory\x12\x14\n\x05limit\x18\x04 \x01(\x05R\x05limit\"\x8c\x01\n\x0eStoredEvidence\x12\x31\n\x08\x65vidence\x18\x01 \x01(\x0b\x32\x15.be.audit.v3.EvidenceR\x08\x65vidence\x12\x14\n\x05\x65poch\x18\x02 \x01(\tR\x05\x65poch\x12\x10\n\x03seq\x18\x03 \x01(\x03R\x03seq\x12\x1f\n\x0breceived_at\x18\x04 \x01(\tR\nreceivedAt\"Y\n\x0cListResponse\x12\x35\n\x07records\x18\x01 \x03(\x0b\x32\x1b.be.audit.v3.StoredEvidenceR\x07records\x12\x12\n\x04more\x18\x02 \x01(\x08R\x04more*\x85\x01\n\rReceiptStatus\x12\x1e\n\x1aRECEIPT_STATUS_UNSPECIFIED\x10\x00\x12\x1b\n\x17RECEIPT_STATUS_RECEIVED\x10\x01\x12\x1b\n\x17RECEIPT_STATUS_CONFLICT\x10\x02\x12\x1a\n\x16RECEIPT_STATUS_INVALID\x10\x03*\xa9\x01\n\x0e\x45videnceStatus\x12\x1f\n\x1b\x45VIDENCE_STATUS_UNSPECIFIED\x10\x00\x12\x1c\n\x18\x45VIDENCE_STATUS_ACCEPTED\x10\x01\x12\x1d\n\x19\x45VIDENCE_STATUS_DUPLICATE\x10\x02\x12\x1c\n\x18\x45VIDENCE_STATUS_CONFLICT\x10\x03\x12\x1b\n\x17\x45VIDENCE_STATUS_INVALID\x10\x04\x32\x9e\x01\n\rIntakeService\x12\x41\n\x06Submit\x12\x1a.be.audit.v3.SubmitRequest\x1a\x1b.be.audit.v3.SubmitResponse\x12J\n\tWatermark\x12\x1d.be.audit.v3.WatermarkRequest\x1a\x1e.be.audit.v3.WatermarkResponse2\x91\x01\n\x0f\x45videnceService\x12\x41\n\x06\x41ppend\x12\x1a.be.audit.v3.AppendRequest\x1a\x1b.be.audit.v3.AppendResponse\x12;\n\x04List\x12\x18.be.audit.v3.ListRequest\x1a\x19.be.audit.v3.ListResponseBHZFgithub.com/brickKit/infra-audit/contract/v3/gen/go/be/audit/v3;auditv3b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -32,8 +32,10 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'be.audit.v3.audit_pb2', _gl
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'ZFgithub.com/brickKit/infra-audit/contract/v3/gen/go/be/audit/v3;auditv3'
-  _globals['_RECEIPTSTATUS']._serialized_start=655
-  _globals['_RECEIPTSTATUS']._serialized_end=788
+  _globals['_RECEIPTSTATUS']._serialized_start=1364
+  _globals['_RECEIPTSTATUS']._serialized_end=1497
+  _globals['_EVIDENCESTATUS']._serialized_start=1500
+  _globals['_EVIDENCESTATUS']._serialized_end=1669
   _globals['_ITEM']._serialized_start=40
   _globals['_ITEM']._serialized_end=150
   _globals['_SUBMITREQUEST']._serialized_start=152
@@ -48,6 +50,22 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_ANCESTOR']._serialized_end=492
   _globals['_WATERMARKRESPONSE']._serialized_start=495
   _globals['_WATERMARKRESPONSE']._serialized_end=652
-  _globals['_INTAKESERVICE']._serialized_start=791
-  _globals['_INTAKESERVICE']._serialized_end=949
+  _globals['_EVIDENCE']._serialized_start=654
+  _globals['_EVIDENCE']._serialized_end=712
+  _globals['_APPENDREQUEST']._serialized_start=714
+  _globals['_APPENDREQUEST']._serialized_end=778
+  _globals['_EVIDENCERECEIPT']._serialized_start=781
+  _globals['_EVIDENCERECEIPT']._serialized_end=929
+  _globals['_APPENDRESPONSE']._serialized_start=931
+  _globals['_APPENDRESPONSE']._serialized_end=1005
+  _globals['_LISTREQUEST']._serialized_start=1007
+  _globals['_LISTREQUEST']._serialized_end=1127
+  _globals['_STOREDEVIDENCE']._serialized_start=1130
+  _globals['_STOREDEVIDENCE']._serialized_end=1270
+  _globals['_LISTRESPONSE']._serialized_start=1272
+  _globals['_LISTRESPONSE']._serialized_end=1361
+  _globals['_INTAKESERVICE']._serialized_start=1672
+  _globals['_INTAKESERVICE']._serialized_end=1830
+  _globals['_EVIDENCESERVICE']._serialized_start=1833
+  _globals['_EVIDENCESERVICE']._serialized_end=1978
 # @@protoc_insertion_point(module_scope)

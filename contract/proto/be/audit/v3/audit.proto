@@ -82,3 +82,78 @@ message WatermarkResponse {
   // Whether a backup has completed in epoch (receipts of ancestors are covered only after one).
   bool backed_up_in_epoch = 4;
 }
+
+// EvidenceService is the evidence store the audit component also serves (assembly protocol 15, component protocol
+// P12.9-P12.14): the records a full restore must not lose, kept apart from the audit records, never rolled back.
+service EvidenceService {
+  // Append keeps each record once by (id, phase) and answers each in order. Callers: every component, with its
+  // service identity, for its own records only (the recorder is the caller, P12.11).
+  rpc Append(AppendRequest) returns (AppendResponse);
+  // List returns records in the store's order after a position. Callers: the configured readers (the recovery tool).
+  rpc List(ListRequest) returns (ListResponse);
+}
+
+// Evidence is one evidence record as it travels: its canonical JSON (be.evidence.record) with its digest.
+message Evidence {
+  // The record's canonical JSON bytes.
+  bytes record = 1;
+  // sha256:<hex> over "be.evidence.record.v1\n" and the bytes.
+  string digest = 2;
+}
+
+message AppendRequest {
+  // At most 500 records.
+  repeated Evidence records = 1;
+}
+
+// EvidenceStatus is what happened to one record (P12.10).
+enum EvidenceStatus {
+  EVIDENCE_STATUS_UNSPECIFIED = 0;
+  // Kept now.
+  EVIDENCE_STATUS_ACCEPTED = 1;
+  // Kept before with the same digest: the receipt is the original one.
+  EVIDENCE_STATUS_DUPLICATE = 2;
+  // Another digest under the same (id, phase), or a conclusion that does not match its intent: not kept.
+  EVIDENCE_STATUS_CONFLICT = 3;
+  // Not a valid record (schema, canonical form, digest): not kept.
+  EVIDENCE_STATUS_INVALID = 4;
+}
+
+message EvidenceReceipt {
+  string id = 1;
+  string phase = 2;
+  EvidenceStatus status = 3;
+  // ACCEPTED or DUPLICATE: the store's own epoch and sequence the record got (P12.12).
+  string epoch = 4;
+  int64 seq = 5;
+}
+
+message AppendResponse {
+  // One receipt for every record, in the order of the records.
+  repeated EvidenceReceipt receipts = 1;
+}
+
+message ListRequest {
+  // The position to start after: the store's sequence (0 for the beginning).
+  int64 after_seq = 1;
+  // Optional filters.
+  string recorder = 2;
+  string category = 3;
+  // At most 500; 0 for 500.
+  int32 limit = 4;
+}
+
+// StoredEvidence is a kept record with its position in the store.
+message StoredEvidence {
+  Evidence evidence = 1;
+  string epoch = 2;
+  int64 seq = 3;
+  // When the store received it (its own clock).
+  string received_at = 4;
+}
+
+message ListResponse {
+  repeated StoredEvidence records = 1;
+  // Set when more may follow: list again after the last record's seq.
+  bool more = 2;
+}

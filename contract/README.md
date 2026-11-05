@@ -42,10 +42,24 @@
 
 来源按 P8.22 判断哪些本地行可以删除（向量 `audit-purge`）。审计组件不知道有过成功的备份时，答 `seq = 0`、`backed_up_in_epoch = false`，于是来源一行也不删：宁可多留，不能删掉没备份的。第 5 步的证据存储只留形状，备份完成怎样登记随协议 15 的实现加入。
 
+### `EvidenceService.Append`（alpha.2 起）
+
+证据存储（组件协议 P12.9–P12.14；装配项目协议 15 的证据表）：
+
+1. **准入**：每个组件都可以调用，但只能交自己的记录：记录的 `recorder.component` 不是调用者的服务身份时，整批拒绝（`PERMISSION_DENIED`）。
+2. **逐条核对**：字节是规范编码、摘要相符、字段合规，否则这一条答 `INVALID`。
+3. **只收一次**：按（`id`，`phase`）。同一对、摘要相同答 `DUPLICATE` 与原来的位置；摘要不同答 `CONFLICT`，不保存，记一条完整性告警。结论（`effective`、`cancelled`）与同一 `id` 的意图的记录者、类别、主体、对象不同，也答 `CONFLICT`；没有意图的结论照收。
+4. **回执**：一批在一个事务里保存，提交之后才回答，每条带证据存储自己的纪元与序号。
+5. **分开存放**：证据与审计记录分表，不进审计的链，查询接口也分开。
+
+### `EvidenceService.List`（alpha.2 起）
+
+按存储序号升序，从 `after_seq` 之后起，每页至多 500 条，可按记录者与类别筛选；`more` 为真时接着列。只有部署配置的读者可以调用（恢复工具）。
+
 ## 引用
 
-- Go：`go get github.com/brickKit/infra-audit/contract/v3@v3.0.0-alpha.1`（标签 `contract/v3.0.0-alpha.1`），导入 `github.com/brickKit/infra-audit/contract/v3/gen/go/be/audit/v3`。
-- Python（uv）：`contract-infra-audit = { git = "https://github.com/brickKit/infra-audit", tag = "contract/v3.0.0-alpha.1", subdirectory = "contract/python" }`。
+- Go：`go get github.com/brickKit/infra-audit/contract/v3@v3.0.0-alpha.2`（标签 `contract/v3.0.0-alpha.2`），导入 `github.com/brickKit/infra-audit/contract/v3/gen/go/be/audit/v3`。
+- Python（uv）：`contract-infra-audit = { git = "https://github.com/brickKit/infra-audit", tag = "contract/v3.0.0-alpha.2", subdirectory = "contract/python" }`。
 
 ## 修改与发布
 

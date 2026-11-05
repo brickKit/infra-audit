@@ -124,3 +124,127 @@ class IntakeService:
             timeout,
             metadata,
             _registered_method=True)
+
+
+class EvidenceServiceStub:
+    """EvidenceService is the evidence store the audit component also serves (assembly protocol 15, component protocol
+    P12.9-P12.14): the records a full restore must not lose, kept apart from the audit records, never rolled back.
+    """
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.Append = channel.unary_unary(
+                '/be.audit.v3.EvidenceService/Append',
+                request_serializer=be_dot_audit_dot_v3_dot_audit__pb2.AppendRequest.SerializeToString,
+                response_deserializer=be_dot_audit_dot_v3_dot_audit__pb2.AppendResponse.FromString,
+                _registered_method=True)
+        self.List = channel.unary_unary(
+                '/be.audit.v3.EvidenceService/List',
+                request_serializer=be_dot_audit_dot_v3_dot_audit__pb2.ListRequest.SerializeToString,
+                response_deserializer=be_dot_audit_dot_v3_dot_audit__pb2.ListResponse.FromString,
+                _registered_method=True)
+
+
+class EvidenceServiceServicer:
+    """EvidenceService is the evidence store the audit component also serves (assembly protocol 15, component protocol
+    P12.9-P12.14): the records a full restore must not lose, kept apart from the audit records, never rolled back.
+    """
+
+    def Append(self, request, context):
+        """Append keeps each record once by (id, phase) and answers each in order. Callers: every component, with its
+        service identity, for its own records only (the recorder is the caller, P12.11).
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def List(self, request, context):
+        """List returns records in the store's order after a position. Callers: the configured readers (the recovery tool).
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_EvidenceServiceServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'Append': grpc.unary_unary_rpc_method_handler(
+                    servicer.Append,
+                    request_deserializer=be_dot_audit_dot_v3_dot_audit__pb2.AppendRequest.FromString,
+                    response_serializer=be_dot_audit_dot_v3_dot_audit__pb2.AppendResponse.SerializeToString,
+            ),
+            'List': grpc.unary_unary_rpc_method_handler(
+                    servicer.List,
+                    request_deserializer=be_dot_audit_dot_v3_dot_audit__pb2.ListRequest.FromString,
+                    response_serializer=be_dot_audit_dot_v3_dot_audit__pb2.ListResponse.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'be.audit.v3.EvidenceService', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('be.audit.v3.EvidenceService', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class EvidenceService:
+    """EvidenceService is the evidence store the audit component also serves (assembly protocol 15, component protocol
+    P12.9-P12.14): the records a full restore must not lose, kept apart from the audit records, never rolled back.
+    """
+
+    @staticmethod
+    def Append(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/be.audit.v3.EvidenceService/Append',
+            be_dot_audit_dot_v3_dot_audit__pb2.AppendRequest.SerializeToString,
+            be_dot_audit_dot_v3_dot_audit__pb2.AppendResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def List(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/be.audit.v3.EvidenceService/List',
+            be_dot_audit_dot_v3_dot_audit__pb2.ListRequest.SerializeToString,
+            be_dot_audit_dot_v3_dot_audit__pb2.ListResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)

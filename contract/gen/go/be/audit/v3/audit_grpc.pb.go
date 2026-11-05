@@ -173,3 +173,155 @@ var IntakeService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "be/audit/v3/audit.proto",
 }
+
+const (
+	EvidenceService_Append_FullMethodName = "/be.audit.v3.EvidenceService/Append"
+	EvidenceService_List_FullMethodName   = "/be.audit.v3.EvidenceService/List"
+)
+
+// EvidenceServiceClient is the client API for EvidenceService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// EvidenceService is the evidence store the audit component also serves (assembly protocol 15, component protocol
+// P12.9-P12.14): the records a full restore must not lose, kept apart from the audit records, never rolled back.
+type EvidenceServiceClient interface {
+	// Append keeps each record once by (id, phase) and answers each in order. Callers: every component, with its
+	// service identity, for its own records only (the recorder is the caller, P12.11).
+	Append(ctx context.Context, in *AppendRequest, opts ...grpc.CallOption) (*AppendResponse, error)
+	// List returns records in the store's order after a position. Callers: the configured readers (the recovery tool).
+	List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error)
+}
+
+type evidenceServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewEvidenceServiceClient(cc grpc.ClientConnInterface) EvidenceServiceClient {
+	return &evidenceServiceClient{cc}
+}
+
+func (c *evidenceServiceClient) Append(ctx context.Context, in *AppendRequest, opts ...grpc.CallOption) (*AppendResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AppendResponse)
+	err := c.cc.Invoke(ctx, EvidenceService_Append_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *evidenceServiceClient) List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListResponse)
+	err := c.cc.Invoke(ctx, EvidenceService_List_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// EvidenceServiceServer is the server API for EvidenceService service.
+// All implementations must embed UnimplementedEvidenceServiceServer
+// for forward compatibility.
+//
+// EvidenceService is the evidence store the audit component also serves (assembly protocol 15, component protocol
+// P12.9-P12.14): the records a full restore must not lose, kept apart from the audit records, never rolled back.
+type EvidenceServiceServer interface {
+	// Append keeps each record once by (id, phase) and answers each in order. Callers: every component, with its
+	// service identity, for its own records only (the recorder is the caller, P12.11).
+	Append(context.Context, *AppendRequest) (*AppendResponse, error)
+	// List returns records in the store's order after a position. Callers: the configured readers (the recovery tool).
+	List(context.Context, *ListRequest) (*ListResponse, error)
+	mustEmbedUnimplementedEvidenceServiceServer()
+}
+
+// UnimplementedEvidenceServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedEvidenceServiceServer struct{}
+
+func (UnimplementedEvidenceServiceServer) Append(context.Context, *AppendRequest) (*AppendResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Append not implemented")
+}
+func (UnimplementedEvidenceServiceServer) List(context.Context, *ListRequest) (*ListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method List not implemented")
+}
+func (UnimplementedEvidenceServiceServer) mustEmbedUnimplementedEvidenceServiceServer() {}
+func (UnimplementedEvidenceServiceServer) testEmbeddedByValue()                         {}
+
+// UnsafeEvidenceServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to EvidenceServiceServer will
+// result in compilation errors.
+type UnsafeEvidenceServiceServer interface {
+	mustEmbedUnimplementedEvidenceServiceServer()
+}
+
+func RegisterEvidenceServiceServer(s grpc.ServiceRegistrar, srv EvidenceServiceServer) {
+	// If the following call panics, it indicates UnimplementedEvidenceServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&EvidenceService_ServiceDesc, srv)
+}
+
+func _EvidenceService_Append_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AppendRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EvidenceServiceServer).Append(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EvidenceService_Append_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EvidenceServiceServer).Append(ctx, req.(*AppendRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _EvidenceService_List_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EvidenceServiceServer).List(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EvidenceService_List_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EvidenceServiceServer).List(ctx, req.(*ListRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// EvidenceService_ServiceDesc is the grpc.ServiceDesc for EvidenceService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var EvidenceService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "be.audit.v3.EvidenceService",
+	HandlerType: (*EvidenceServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Append",
+			Handler:    _EvidenceService_Append_Handler,
+		},
+		{
+			MethodName: "List",
+			Handler:    _EvidenceService_List_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "be/audit/v3/audit.proto",
+}
