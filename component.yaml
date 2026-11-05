@@ -4,7 +4,7 @@ kind: Component
 metadata:
   id: infra/audit
   name: Audit
-  version: 3.0.17
+  version: 3.0.18
   description: "The audit component: every component's audit records taken over the system surface, idempotently by source and ID, with receipts, the backed-up watermark and the query; the evidence store comes with protocol 15"
   repository: https://github.com/brickKit/infra-audit
 
@@ -35,112 +35,111 @@ local:
   migrationCommand: [go, run, ., migrate]
 
 configSchema:
-  type: object
-  required:
-  - DEPLOYMENT_ID
-  - IAM_ISSUER
-  - IAM_JWKS_URL
-  - AUTHZ_GRPC_URL
-  - SERVICE_TLS_CERT_FILE
-  - SERVICE_TLS_KEY_FILE
-  - SERVICE_TLS_CA_FILE
-  - PG_HOST
-  - PG_DATABASE
-  - PG_USER
-  - PG_PASSWORD
-  - PG_SCHEMA
   properties:
     AUDIT_EVIDENCE_READERS:
+      description: the components that may list the evidence (comma-separated component IDs); default ops/recover, the recovery tool; SDK default ops/recover
       type: string
-      description: 'the components that may list the evidence (comma-separated component IDs); default ops/recover, the recovery tool'
-    LOG_LEVEL:
-      type: string
-      enum:
-      - debug
-      - info
-      - warn
-      - error
-      description: SDK default info
-    OTEL_URL:
-      type: string
-      description: 'process-level: the same for every member of a shell'
-    STOP_DRAIN_DELAY:
-      type: string
-      description: a duration (e.g. 2s, 500ms); SDK default 2s
-    STOP_TIMEOUT:
-      type: string
-      description: a duration (e.g. 2s, 500ms); SDK default 30s
-    DEPLOYMENT_ID:
-      type: string
-      description: 'process-level: the same for every member of a shell'
-    IAM_ISSUER:
-      type: string
-      description: 'process-level: the same for every member of a shell'
-    IAM_JWKS_URL:
-      type: string
-      description: 'process-level: the same for every member of a shell'
-    AUTHZ_GRPC_URL:
-      type: string
-      description: 'process-level: the same for every member of a shell'
     AUDIT_GRPC_URL:
+      description: 'process-level; for this component its own system surface ($endpoint:infra/audit:grpc): its own audit records go through the same intake; process-level: the same for every member of a shell'
       type: string
-      description: 'process-level; for this component its own system surface ($endpoint:infra/audit:grpc): its own audit records go through the same intake'
-    SERVICE_TLS_CERT_FILE:
+    AUTHZ_GRPC_URL:
+      description: 'process-level: the same for every member of a shell'
       type: string
-      secret: true
-      mount: file
-      description: a file path, re-read on rotation
-    SERVICE_TLS_KEY_FILE:
+    DEPLOYMENT_ID:
+      description: 'process-level: the same for every member of a shell'
       type: string
-      secret: true
-      mount: file
-      description: a file path, re-read on rotation
-    SERVICE_TLS_CA_FILE:
+    IAM_ISSUER:
+      description: 'process-level: the same for every member of a shell'
       type: string
-      secret: true
-      mount: file
-      description: a file path, re-read on rotation
-    PG_HOST:
+    IAM_JWKS_URL:
+      description: 'process-level: the same for every member of a shell'
       type: string
-    PG_PORT:
-      type: integer
-      description: SDK default 5432
+    LOG_LEVEL:
+      description: SDK default info
+      enum:
+        - debug
+        - info
+        - warn
+        - error
+      type: string
+    OTEL_URL:
+      description: 'process-level: the same for every member of a shell'
+      type: string
     PG_DATABASE:
       type: string
-    PG_USER:
+    PG_HOST:
       type: string
-    PG_PASSWORD:
-      type: string
-      secret: true
-    PG_SCHEMA:
-      type: string
-    PG_POOLER_PREPARED:
-      type: boolean
-      description: SDK default true
-    PG_STATEMENT_TIMEOUT:
-      type: string
-      description: a duration (e.g. 2s, 500ms); SDK default 5s
-    PG_LOCK_TIMEOUT:
-      type: string
-      description: a duration (e.g. 2s, 500ms); SDK default 2s
     PG_IDLE_IN_TX_TIMEOUT:
-      type: string
       description: a duration (e.g. 2s, 500ms); SDK default 10s
-    PG_POOL_FOREGROUND:
-      type: integer
-      description: SDK default 8
-    PG_POOL_BACKGROUND:
-      type: integer
-      description: SDK default 4
+      type: string
+    PG_LOCK_TIMEOUT:
+      description: a duration (e.g. 2s, 500ms); SDK default 2s
+      type: string
     PG_MIGRATION_HOST:
       type: string
     PG_MIGRATION_PORT:
       type: integer
+    PG_OWNER_PASSWORD:
+      secret: true
+      type: string
     PG_OWNER_USER:
       type: string
-    PG_OWNER_PASSWORD:
-      type: string
+    PG_PASSWORD:
       secret: true
+      type: string
+    PG_POOL_BACKGROUND:
+      description: SDK default 4
+      type: integer
+    PG_POOL_FOREGROUND:
+      description: SDK default 8
+      type: integer
+    PG_POOLER_PREPARED:
+      description: SDK default true
+      type: boolean
+    PG_PORT:
+      description: SDK default 5432
+      type: integer
+    PG_SCHEMA:
+      type: string
+    PG_STATEMENT_TIMEOUT:
+      description: a duration (e.g. 2s, 500ms); SDK default 5s
+      type: string
+    PG_USER:
+      type: string
+    RECOVERY_PHASE:
+      description: 'process-level: the same for every member of a shell'
+      enum:
+        - frozen
+        - redelivering
+      type: string
+    SERVICE_TLS_CA_FILE:
+      description: a file path, re-read on rotation
+      mount: file
+      secret: true
+      type: string
+    SERVICE_TLS_CERT_FILE:
+      description: a file path, re-read on rotation
+      mount: file
+      secret: true
+      type: string
+    SERVICE_TLS_KEY_FILE:
+      description: a file path, re-read on rotation
+      mount: file
+      secret: true
+      type: string
+    STOP_DRAIN_DELAY:
+      description: a duration (e.g. 2s, 500ms); SDK default 2s
+      type: string
+    STOP_TIMEOUT:
+      description: a duration (e.g. 2s, 500ms); SDK default 30s
+      type: string
+  required:
+    - PG_DATABASE
+    - PG_HOST
+    - PG_PASSWORD
+    - PG_SCHEMA
+    - PG_USER
+  type: object
 
 release:
   goModule: true

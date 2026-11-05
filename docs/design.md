@@ -53,6 +53,8 @@
 
 ## 实现状态
 
+3.0.18：清单声明 `RECOVERY_PHASE`（3.0.17 漏了：本组件没有清单测试）；加上 `manifest_test.go`，`configSchema` 换成 SDK 生成的那一段（旧的必填项与说明早已与 SDK 不一致）。
+
 3.0.17（底层先行第 4 项 T8 的级联）：be-sdk-go alpha.81（恢复模式：恢复阶段里只跑阶段允许的部分；本组件没有流，不提供补发）。
 
 3.0.16：只有 `effective` 与 `general` 带位置（`be-protocol` alpha.74 改正 P12.9：“已取消”的事务没有提交）。
