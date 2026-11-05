@@ -13,10 +13,12 @@ import (
 	"errors"
 	"io/fs"
 	"strconv"
+	"strings"
 	"time"
 
 	sdkauthz "github.com/brickKit/be-sdk-go/v3/authz"
 	"github.com/brickKit/be-sdk-go/v3/component"
+	"github.com/brickKit/be-sdk-go/v3/config"
 	"github.com/brickKit/be-sdk-go/v3/db"
 	"github.com/brickKit/be-sdk-go/v3/errs"
 	"github.com/brickKit/be-sdk-go/v3/grpcx"
@@ -30,7 +32,7 @@ import (
 // Identity of the component, its resources and operations.
 const (
 	ID          = "infra/audit"
-	Version     = "3.0.14"
+	Version     = "3.0.15"
 	GRPCPort    = 9206
 	Records     = "infra.audit.record"
 	OpRead      = "infra.audit.record.read"
@@ -38,8 +40,22 @@ const (
 	OpSubmit    = "infra.audit.intake.submit"
 	OpWatermark = "infra.audit.intake.watermark"
 	IntakeRead  = "infra.audit.intake.read"
+	Evidence    = "infra.audit.evidence"
+	OpAppend    = "infra.audit.evidence.append"
+	OpList      = "infra.audit.evidence.list"
 	MaxBatch    = 500
+	// DefaultEvidenceReader is the recovery tool's service identity.
+	DefaultEvidenceReader = "ops/recover"
 )
+
+// Keys are the component's own configuration keys.
+func Keys() []config.Key {
+	return []config.Key{
+		// the components that may list the evidence (P12.13), comma-separated component IDs; by default the recovery
+		// tool's service identity (be-ops recover, A136)
+		{Name: "AUDIT_EVIDENCE_READERS", Type: config.String, Default: DefaultEvidenceReader},
+	}
+}
 
 //go:embed migrations/*.sql
 var migrationFiles embed.FS
@@ -57,24 +73,28 @@ func Definitions() *sdkauthz.Definitions {
 			{Type: Records, ViewOperation: OpRead, Dimensions: none, Fields: map[string]sdkauthz.Field{
 				"source": {Class: sdkauthz.Ordinary}, "id": {Class: sdkauthz.Ordinary}, "record": {Class: sdkauthz.Ordinary},
 				"received_at": {Class: sdkauthz.Ordinary}}},
-			{Type: Intake, ViewOperation: IntakeRead, Dimensions: none, Fields: map[string]sdkauthz.Field{}}},
+			{Type: Intake, ViewOperation: IntakeRead, Dimensions: none, Fields: map[string]sdkauthz.Field{}},
+			{Type: Evidence, ViewOperation: OpList, Dimensions: none, Fields: map[string]sdkauthz.Field{}}},
 		Operations: []sdkauthz.Operation{
 			{Key: OpRead, ResourceType: Records, Purpose: "special_read", RiskClass: "low"},
 			{Key: IntakeRead, ResourceType: Intake, Purpose: "read", RiskClass: "low"},
 			{Key: OpSubmit, ResourceType: Intake, Purpose: "action", RiskClass: "low", SideEffects: []string{"business_write"}},
 			{Key: OpWatermark, ResourceType: Intake, Purpose: "read", RiskClass: "low"},
+			{Key: OpAppend, ResourceType: Evidence, Purpose: "action", RiskClass: "low", SideEffects: []string{"business_write"}},
+			{Key: OpList, ResourceType: Evidence, Purpose: "read", RiskClass: "low"},
 		}}
 }
 
 // Definition is the component as the launcher and the shells take it.
 func Definition() component.Definition {
-	return component.Definition{ID: ID, Version: Version, Migrations: migrations(), GRPCPort: GRPCPort, Authz: Definitions(),
+	return component.Definition{ID: ID, Version: Version, Keys: Keys(), Migrations: migrations(), GRPCPort: GRPCPort, Authz: Definitions(),
 		New: func(rt *runtime.Runtime) (component.Module, error) { return &Module{rt: rt}, nil }}
 }
 
 // Module is the audit component.
 type Module struct {
 	auditv3.UnimplementedIntakeServiceServer
+	auditv3.UnimplementedEvidenceServiceServer
 	rt *runtime.Runtime
 }
 
@@ -83,6 +103,15 @@ func (m *Module) Services(s *grpcx.Services) error {
 	s.Register(&auditv3.IntakeService_ServiceDesc, m, map[string]grpcx.Method{
 		"Submit":    {Operation: OpSubmit, Callers: []string{grpcx.AnyComponent}},
 		"Watermark": {Operation: OpWatermark, Callers: []string{grpcx.AnyComponent}}})
+	var readers []string
+	for _, r := range strings.Split(m.rt.Config.String("AUDIT_EVIDENCE_READERS"), ",") {
+		if r = strings.TrimSpace(r); r != "" {
+			readers = append(readers, r)
+		}
+	}
+	s.Register(&auditv3.EvidenceService_ServiceDesc, m, map[string]grpcx.Method{
+		"Append": {Operation: OpAppend, Callers: []string{grpcx.AnyComponent}},
+		"List":   {Operation: OpList, Callers: readers}})
 	return nil
 }
 

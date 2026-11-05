@@ -4,7 +4,7 @@ kind: Component
 metadata:
   id: infra/audit
   name: Audit
-  version: 3.0.14
+  version: 3.0.15
   description: "The audit component: every component's audit records taken over the system surface, idempotently by source and ID, with receipts, the backed-up watermark and the query; the evidence store comes with protocol 15"
   repository: https://github.com/brickKit/infra-audit
 
@@ -50,6 +50,9 @@ configSchema:
   - PG_PASSWORD
   - PG_SCHEMA
   properties:
+    AUDIT_EVIDENCE_READERS:
+      type: string
+      description: 'the components that may list the evidence (comma-separated component IDs); default ops/recover, the recovery tool'
     LOG_LEVEL:
       type: string
       enum:
