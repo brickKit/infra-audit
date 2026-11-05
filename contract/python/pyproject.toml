@@ -1,6 +1,6 @@
 [project]
 name = "contract-infra-audit"
-version = "3.0.0a2"
+version = "3.0.0a3"
 description = "Generated code of the audit contract (be.audit.v3): messages and gRPC stubs"
 requires-python = ">=3.15,<3.16"
 # The generated code checks it runs on a protobuf at least as new as the one it was generated for (protoc 36.2).

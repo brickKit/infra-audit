@@ -56,10 +56,14 @@
 
 按存储序号升序，从 `after_seq` 之后起，每页至多 500 条，可按记录者与类别筛选；`more` 为真时接着列。只有部署配置的读者可以调用（恢复工具）。
 
+### `RecordService.List`（alpha.3 起）
+
+列出发生时刻不早于 `since` 的审计记录，可按类别筛选，按存储位置（审计库纪元与存储序号）升序，从 `after`（上一页最后一条的 `position`）之后起，每页至多 500 条；每条带来源、来源纪元与产生序号（整套恢复第 9 步的损失范围与审计损失）。读者与 `EvidenceService.List` 相同（部署配置的读者，恢复工具）。
+
 ## 引用
 
-- Go：`go get github.com/brickKit/infra-audit/contract/v3@v3.0.0-alpha.2`（标签 `contract/v3.0.0-alpha.2`），导入 `github.com/brickKit/infra-audit/contract/v3/gen/go/be/audit/v3`。
-- Python（uv）：`contract-infra-audit = { git = "https://github.com/brickKit/infra-audit", tag = "contract/v3.0.0-alpha.2", subdirectory = "contract/python" }`。
+- Go：`go get github.com/brickKit/infra-audit/contract/v3@v3.0.0-alpha.3`（标签 `contract/v3.0.0-alpha.3`），导入 `github.com/brickKit/infra-audit/contract/v3/gen/go/be/audit/v3`。
+- Python（uv）：`contract-infra-audit = { git = "https://github.com/brickKit/infra-audit", tag = "contract/v3.0.0-alpha.3", subdirectory = "contract/python" }`。
 
 ## 修改与发布
 

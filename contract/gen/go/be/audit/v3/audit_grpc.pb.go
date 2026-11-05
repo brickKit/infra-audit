@@ -325,3 +325,113 @@ var EvidenceService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "be/audit/v3/audit.proto",
 }
+
+const (
+	RecordService_List_FullMethodName = "/be.audit.v3.RecordService/List"
+)
+
+// RecordServiceClient is the client API for RecordService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// RecordService lets the configured readers (the recovery tool, AUDIT_EVIDENCE_READERS) read the audit records: a
+// full recovery's loss range and audit loss (assembly protocol 15, step 9; component protocol P14.3-P14.5).
+type RecordServiceClient interface {
+	// List returns the records that occurred at or after a moment, in the store's order after a position.
+	List(ctx context.Context, in *RecordServiceListRequest, opts ...grpc.CallOption) (*RecordServiceListResponse, error)
+}
+
+type recordServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewRecordServiceClient(cc grpc.ClientConnInterface) RecordServiceClient {
+	return &recordServiceClient{cc}
+}
+
+func (c *recordServiceClient) List(ctx context.Context, in *RecordServiceListRequest, opts ...grpc.CallOption) (*RecordServiceListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RecordServiceListResponse)
+	err := c.cc.Invoke(ctx, RecordService_List_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// RecordServiceServer is the server API for RecordService service.
+// All implementations must embed UnimplementedRecordServiceServer
+// for forward compatibility.
+//
+// RecordService lets the configured readers (the recovery tool, AUDIT_EVIDENCE_READERS) read the audit records: a
+// full recovery's loss range and audit loss (assembly protocol 15, step 9; component protocol P14.3-P14.5).
+type RecordServiceServer interface {
+	// List returns the records that occurred at or after a moment, in the store's order after a position.
+	List(context.Context, *RecordServiceListRequest) (*RecordServiceListResponse, error)
+	mustEmbedUnimplementedRecordServiceServer()
+}
+
+// UnimplementedRecordServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedRecordServiceServer struct{}
+
+func (UnimplementedRecordServiceServer) List(context.Context, *RecordServiceListRequest) (*RecordServiceListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method List not implemented")
+}
+func (UnimplementedRecordServiceServer) mustEmbedUnimplementedRecordServiceServer() {}
+func (UnimplementedRecordServiceServer) testEmbeddedByValue()                       {}
+
+// UnsafeRecordServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to RecordServiceServer will
+// result in compilation errors.
+type UnsafeRecordServiceServer interface {
+	mustEmbedUnimplementedRecordServiceServer()
+}
+
+func RegisterRecordServiceServer(s grpc.ServiceRegistrar, srv RecordServiceServer) {
+	// If the following call panics, it indicates UnimplementedRecordServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&RecordService_ServiceDesc, srv)
+}
+
+func _RecordService_List_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecordServiceListRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RecordServiceServer).List(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RecordService_List_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RecordServiceServer).List(ctx, req.(*RecordServiceListRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// RecordService_ServiceDesc is the grpc.ServiceDesc for RecordService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var RecordService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "be.audit.v3.RecordService",
+	HandlerType: (*RecordServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "List",
+			Handler:    _RecordService_List_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "be/audit/v3/audit.proto",
+}

@@ -248,3 +248,82 @@ class EvidenceService:
             timeout,
             metadata,
             _registered_method=True)
+
+
+class RecordServiceStub:
+    """RecordService lets the configured readers (the recovery tool, AUDIT_EVIDENCE_READERS) read the audit records: a
+    full recovery's loss range and audit loss (assembly protocol 15, step 9; component protocol P14.3-P14.5).
+    """
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.List = channel.unary_unary(
+                '/be.audit.v3.RecordService/List',
+                request_serializer=be_dot_audit_dot_v3_dot_audit__pb2.RecordServiceListRequest.SerializeToString,
+                response_deserializer=be_dot_audit_dot_v3_dot_audit__pb2.RecordServiceListResponse.FromString,
+                _registered_method=True)
+
+
+class RecordServiceServicer:
+    """RecordService lets the configured readers (the recovery tool, AUDIT_EVIDENCE_READERS) read the audit records: a
+    full recovery's loss range and audit loss (assembly protocol 15, step 9; component protocol P14.3-P14.5).
+    """
+
+    def List(self, request, context):
+        """List returns the records that occurred at or after a moment, in the store's order after a position.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_RecordServiceServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'List': grpc.unary_unary_rpc_method_handler(
+                    servicer.List,
+                    request_deserializer=be_dot_audit_dot_v3_dot_audit__pb2.RecordServiceListRequest.FromString,
+                    response_serializer=be_dot_audit_dot_v3_dot_audit__pb2.RecordServiceListResponse.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'be.audit.v3.RecordService', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('be.audit.v3.RecordService', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class RecordService:
+    """RecordService lets the configured readers (the recovery tool, AUDIT_EVIDENCE_READERS) read the audit records: a
+    full recovery's loss range and audit loss (assembly protocol 15, step 9; component protocol P14.3-P14.5).
+    """
+
+    @staticmethod
+    def List(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/be.audit.v3.RecordService/List',
+            be_dot_audit_dot_v3_dot_audit__pb2.RecordServiceListRequest.SerializeToString,
+            be_dot_audit_dot_v3_dot_audit__pb2.RecordServiceListResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)

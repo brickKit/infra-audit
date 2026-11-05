@@ -160,3 +160,37 @@ class ListResponse(_message.Message):
     records: _containers.RepeatedCompositeFieldContainer[StoredEvidence]
     more: bool
     def __init__(self, records: _Optional[_Iterable[_Union[StoredEvidence, _Mapping]]] = ..., more: _Optional[bool] = ...) -> None: ...
+
+class RecordServiceListRequest(_message.Message):
+    __slots__ = ("since", "categories", "after", "limit")
+    SINCE_FIELD_NUMBER: _ClassVar[int]
+    CATEGORIES_FIELD_NUMBER: _ClassVar[int]
+    AFTER_FIELD_NUMBER: _ClassVar[int]
+    LIMIT_FIELD_NUMBER: _ClassVar[int]
+    since: str
+    categories: _containers.RepeatedScalarFieldContainer[str]
+    after: str
+    limit: int
+    def __init__(self, since: _Optional[str] = ..., categories: _Optional[_Iterable[str]] = ..., after: _Optional[str] = ..., limit: _Optional[int] = ...) -> None: ...
+
+class StoredRecord(_message.Message):
+    __slots__ = ("source", "record", "source_epoch", "source_seq", "position")
+    SOURCE_FIELD_NUMBER: _ClassVar[int]
+    RECORD_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_EPOCH_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_SEQ_FIELD_NUMBER: _ClassVar[int]
+    POSITION_FIELD_NUMBER: _ClassVar[int]
+    source: str
+    record: bytes
+    source_epoch: str
+    source_seq: int
+    position: str
+    def __init__(self, source: _Optional[str] = ..., record: _Optional[bytes] = ..., source_epoch: _Optional[str] = ..., source_seq: _Optional[int] = ..., position: _Optional[str] = ...) -> None: ...
+
+class RecordServiceListResponse(_message.Message):
+    __slots__ = ("records", "more")
+    RECORDS_FIELD_NUMBER: _ClassVar[int]
+    MORE_FIELD_NUMBER: _ClassVar[int]
+    records: _containers.RepeatedCompositeFieldContainer[StoredRecord]
+    more: bool
+    def __init__(self, records: _Optional[_Iterable[_Union[StoredRecord, _Mapping]]] = ..., more: _Optional[bool] = ...) -> None: ...

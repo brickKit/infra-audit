@@ -157,3 +157,39 @@ message ListResponse {
   // Set when more may follow: list again after the last record's seq.
   bool more = 2;
 }
+
+// RecordService lets the configured readers (the recovery tool, AUDIT_EVIDENCE_READERS) read the audit records: a
+// full recovery's loss range and audit loss (assembly protocol 15, step 9; component protocol P14.3-P14.5).
+service RecordService {
+  // List returns the records that occurred at or after a moment, in the store's order after a position.
+  rpc List(RecordServiceListRequest) returns (RecordServiceListResponse);
+}
+
+message RecordServiceListRequest {
+  // RFC 3339: only the records that occurred at or after it.
+  string since = 1;
+  // Only these categories (business_change, security_change, sensitive_read, ...); empty: all.
+  repeated string categories = 2;
+  // The position to start after: the last answer's last position; empty for the beginning.
+  string after = 3;
+  // At most 500, and the default.
+  int32 limit = 4;
+}
+
+// StoredRecord is one audit record as the store keeps it.
+message StoredRecord {
+  // The source component (its certificate).
+  string source = 1;
+  // The record's canonical JSON bytes (be.audit.record), as received.
+  bytes record = 2;
+  // The source's epoch and production sequence (the audit loss is the gaps in them, protocol 03).
+  string source_epoch = 3;
+  int64 source_seq = 4;
+  // The record's position in the store: pass the last one as after for the next page.
+  string position = 5;
+}
+
+message RecordServiceListResponse {
+  repeated StoredRecord records = 1;
+  bool more = 2;
+}
