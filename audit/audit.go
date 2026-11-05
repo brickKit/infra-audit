@@ -33,7 +33,7 @@ import (
 // Identity of the component, its resources and operations.
 const (
 	ID          = "infra/audit"
-	Version     = "3.0.20"
+	Version     = "3.0.21"
 	GRPCPort    = 9206
 	Records     = "infra.audit.record"
 	OpRead      = "infra.audit.record.read"
@@ -44,6 +44,10 @@ const (
 	Evidence    = "infra.audit.evidence"
 	OpAppend    = "infra.audit.evidence.append"
 	OpList      = "infra.audit.evidence.list"
+	System      = "infra.audit.system"
+	OpSystem    = "infra.audit.system.read"
+	// OpRecover is a full recovery's checks (be-protocol chapter 14: the recovery tool only).
+	OpRecover = "infra.audit.system.recover"
 	MaxBatch    = 500
 	// DefaultChainCheck is how often the chains are verified by default (AU14): every record is read each time.
 	DefaultChainCheck = 24 * time.Hour
@@ -79,7 +83,8 @@ func Definitions() *sdkauthz.Definitions {
 				"source": {Class: sdkauthz.Ordinary}, "id": {Class: sdkauthz.Ordinary}, "record": {Class: sdkauthz.Ordinary},
 				"received_at": {Class: sdkauthz.Ordinary}}},
 			{Type: Intake, ViewOperation: IntakeRead, Dimensions: none, Fields: map[string]sdkauthz.Field{}},
-			{Type: Evidence, ViewOperation: OpList, Dimensions: none, Fields: map[string]sdkauthz.Field{}}},
+			{Type: Evidence, ViewOperation: OpList, Dimensions: none, Fields: map[string]sdkauthz.Field{}},
+			{Type: System, ViewOperation: OpSystem, Dimensions: none, Fields: map[string]sdkauthz.Field{}}},
 		Operations: []sdkauthz.Operation{
 			{Key: OpRead, ResourceType: Records, Purpose: "special_read", RiskClass: "low", Audit: true}, // AU13
 			{Key: IntakeRead, ResourceType: Intake, Purpose: "read", RiskClass: "low"},
@@ -87,12 +92,15 @@ func Definitions() *sdkauthz.Definitions {
 			{Key: OpWatermark, ResourceType: Intake, Purpose: "read", RiskClass: "low"},
 			{Key: OpAppend, ResourceType: Evidence, Purpose: "action", RiskClass: "low", SideEffects: []string{"business_write"}},
 			{Key: OpList, ResourceType: Evidence, Purpose: "read", RiskClass: "low"},
+			{Key: OpSystem, ResourceType: System, Purpose: "read", RiskClass: "low"},
+			{Key: OpRecover, ResourceType: System, Purpose: "read", RiskClass: "low"},
 		}}
 }
 
 // Definition is the component as the launcher and the shells take it.
 func Definition() component.Definition {
 	return component.Definition{ID: ID, Version: Version, Keys: Keys(), Migrations: migrations(), GRPCPort: GRPCPort, Authz: Definitions(),
+		Recovery: OpRecover,
 		New: func(rt *runtime.Runtime) (component.Module, error) { return &Module{rt: rt}, nil }}
 }
 

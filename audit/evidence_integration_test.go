@@ -16,6 +16,7 @@ import (
 	"github.com/brickKit/be-sdk-go/v3/config"
 	"github.com/brickKit/be-sdk-go/v3/ids"
 	"github.com/brickKit/be-sdk-go/v3/launcher"
+	"github.com/brickKit/be-sdk-go/v3/recoverypb"
 	"github.com/brickKit/be-sdk-go/v3/sectest"
 	auditv3 "github.com/brickKit/infra-audit/contract/v3/gen/go/be/audit/v3"
 	"github.com/jackc/pgx/v5"
@@ -179,4 +180,24 @@ func TestTheEvidenceStore(t *testing.T) {
 	page, err = list(recover, &auditv3.ListRequest{Category: "security_tightening"})
 	require.NoError(t, err)
 	assert.Len(t, page.GetRecords(), 4)
+
+	// a full recovery's checks (be-protocol chapter 14): the recovery tool only; the audit store never goes back, so
+	// what its own audit names is present
+	checks := func(component string) recoverypb.CheckServiceClient {
+		conn, err := grpc.NewClient(itSystem, grpc.WithTransportCredentials(credentials.NewTLS(w.TLS(t, component).ClientConfig(ID))))
+		require.NoError(t, err)
+		t.Cleanup(func() { conn.Close() })
+		return recoverypb.NewCheckServiceClient(conn)
+	}
+	cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	_, err = checks("demo/orders").Check(cctx, &recoverypb.CheckRequest{Recovery: "r"})
+	assert.Equal(t, codes.PermissionDenied, status.Code(err), "%v", err)
+	res, err := checks(DefaultEvidenceReader).Check(cctx, &recoverypb.CheckRequest{Recovery: "r"})
+	require.NoError(t, err)
+	assert.NotEmpty(t, res.GetResults())
+	present, err := checks(DefaultEvidenceReader).Present(cctx, &recoverypb.PresentRequest{Recovery: "r",
+		Objects: []*recoverypb.ObjectRef{{Type: Records, Id: "any"}}})
+	require.NoError(t, err)
+	assert.Equal(t, "present", present.GetAnswers()[0].GetAnswer())
 }

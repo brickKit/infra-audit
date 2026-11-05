@@ -53,6 +53,8 @@
 
 ## 实现状态
 
+3.0.21（底层先行第 4 项 T10 的级联）：be-sdk-go alpha.91。整套恢复的核对（`CheckService`，操作 `infra.audit.system.recover`，新的 `infra.audit.system` 资源；只许恢复工具调用）：SDK 自带的三项检查；审计存储不随其他组件回退（恢复工具不复制它的 schema），所以本组件自己审计过的对象一律答“还在”；清单的 `RECOVERY_PHASE` 加 `verifying`、`read_only`。
+
 3.0.20（底层先行第 4 项 T4e）：协议 03 的 AU13 与 AU14。查询的操作声明为必需审计；查询按调用者的授予裁剪字段（`sdkauthz.Mask`，没读权的置空并列在 `_masked`），返回之前先写一条敏感读取的审计（写不进就不答）。链校验：单例作业（`AUDIT_CHAIN_CHECK_INTERVAL`，起始 24 小时）逐个来源按（审计库纪元，存储序号）读全部记录，核对字节与摘要、重算链、对照链头，第一个断点写进 `audit_chain_break`（迁移 0003）并记错误级日志；每次都读全部（从上次核对过的地方接着读就看不到更早的记录被改）。保留期删除与法律保全仍没有做，归第 5 项（A143），在那之前不删除任何记录。SDK alpha.88。
 
 3.0.19（底层先行第 4 项 T9 的级联）：be-sdk-go alpha.87（重放、恢复阶段 `replaying`、转发器停止时放弃租约）；清单的 `RECOVERY_PHASE` 加 `replaying`。
