@@ -22,6 +22,7 @@ import (
 	"time"
 
 	sdkaudit "github.com/brickKit/be-sdk-go/v3/audit"
+	sdkauthz "github.com/brickKit/be-sdk-go/v3/authz"
 	"github.com/brickKit/be-sdk-go/v3/canon"
 	"github.com/brickKit/be-sdk-go/v3/config"
 	"github.com/brickKit/be-sdk-go/v3/ids"
@@ -66,11 +67,14 @@ func TestAuditEndToEnd(t *testing.T) {
 
 	w := sectest.New(t)
 	w.GrantAll(sectest.Alice, Definitions())
+	// Bob may read the audit records' source and ID only (AU13: the fields cut to the caller's grant)
+	w.Grant(sectest.Bob, sdkauthz.Segment{ResourceType: Records, Operation: OpRead, Atoms: map[string]sdkauthz.Atom{},
+		ReadFields: []string{"id", "source"}, Valid: sdkauthz.Window{From: "2026-01-01T00:00:00.000000Z"}})
 	portFree(t, itPort, itSystem)
 	env := w.Env(t, ID)
 	for k, v := range map[string]string{"COMPONENT_ID": ID, "COMPONENT_VERSION": Version, "PORT": itPort, "STOP_DRAIN_DELAY": "50ms",
 		"PG_HOST": "localhost", "PG_DATABASE": itDB, "PG_USER": "postgres", "PG_PASSWORD": pgPassword, "PG_SCHEMA": itSchema,
-		"PG_OWNER_USER": "postgres", "PG_OWNER_PASSWORD": pgPassword} {
+		"PG_OWNER_USER": "postgres", "PG_OWNER_PASSWORD": pgPassword, "AUDIT_CHAIN_CHECK_INTERVAL": "1s"} {
 		env[k] = v
 	}
 	var logs bytes.Buffer
@@ -187,11 +191,78 @@ func TestAuditEndToEnd(t *testing.T) {
 	require.Len(t, out.Records, 1)
 	assert.Equal(t, "demo/orders", out.Records[0].Source)
 	assert.Equal(t, "demo.order.create", out.Records[0].Record["operation"])
-	req.Header.Set("Authorization", w.Bearer(sectest.Bob))
+	queries := func() (n int) {
+		require.NoError(t, admin.QueryRow(ctx, "SELECT count(*) FROM "+itSchema+".be_audit_log WHERE category = 'sensitive_read' "+
+			"AND operation = $1", OpRead).Scan(&n))
+		return n
+	}
+	assert.Equal(t, 1, queries(), "AU13: the query itself is audited")
+	req.Header.Set("Authorization", w.Bearer("0190f3a1-0000-7000-8000-0000000000c3"))
 	resp, err = http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	resp.Body.Close()
-	assert.Equal(t, 404, resp.StatusCode, "Bob holds no grant to read the audit records: not visible (P8.16)")
+	assert.Equal(t, 404, resp.StatusCode, "no grant to read the audit records: not visible (P8.16)")
+	req.Header.Set("Authorization", w.Bearer(sectest.Bob))
+	resp, err = http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	body, _ = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	require.Equal(t, 200, resp.StatusCode, string(body))
+	var cut struct {
+		Records []map[string]any `json:"records"`
+	}
+	require.NoError(t, json.Unmarshal(body, &cut))
+	require.Len(t, cut.Records, 1)
+	assert.Equal(t, "demo/orders", cut.Records[0]["source"])
+	assert.Nil(t, cut.Records[0]["record"], "AU13: the fields cut to Bob's grant")
+	assert.Equal(t, []any{"received_at", "record"}, cut.Records[0]["_masked"])
+	assert.Equal(t, 2, queries())
+
+	// AU14: the chain check finds a record changed in place and one taken out of the middle
+	breaks := func() (n int) {
+		require.NoError(t, admin.QueryRow(ctx, "SELECT count(*) FROM "+itSchema+".audit_chain_break").Scan(&n))
+		return n
+	}
+	time.Sleep(2500 * time.Millisecond)
+	require.Zero(t, breaks(), "the precondition: every chain verifies")
+	_, err = admin.Exec(ctx, "UPDATE "+itSchema+".audit_record SET record = $2 WHERE id = $1", batch[1].ID, batch[2].Record)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool { return breaks() == 1 }, 10*time.Second, 200*time.Millisecond, "a changed record")
+	assert.Contains(t, logs.String(), `"event":"audit_chain_broken"`)
+	_, err = admin.Exec(ctx, "UPDATE "+itSchema+".audit_record SET record = $2 WHERE id = $1", batch[1].ID, batch[1].Record)
+	require.NoError(t, err)
+	_, err = admin.Exec(ctx, "DELETE FROM "+itSchema+".audit_chain_break")
+	require.NoError(t, err)
+	time.Sleep(2500 * time.Millisecond)
+	require.Zero(t, breaks(), "put back: the chain verifies again")
+	// the last record taken off the end: only the source's head tells
+	var lastID string
+	require.NoError(t, admin.QueryRow(ctx, "SELECT id::text FROM "+itSchema+".audit_record WHERE source = 'demo/orders' "+
+		"ORDER BY storage_seq DESC LIMIT 1").Scan(&lastID))
+	for _, q := range []string{"CREATE TABLE " + itSchema + ".au14_kept AS SELECT * FROM " + itSchema + ".audit_record WHERE id = $1",
+		"DELETE FROM " + itSchema + ".audit_record WHERE id = $1"} {
+		_, err = admin.Exec(ctx, q, lastID)
+		require.NoError(t, err)
+	}
+	require.Eventually(t, func() bool { return breaks() == 1 }, 10*time.Second, 200*time.Millisecond, "a record taken off the end")
+	var detail string
+	require.NoError(t, admin.QueryRow(ctx, "SELECT detail FROM "+itSchema+".audit_chain_break").Scan(&detail))
+	assert.Contains(t, detail, "the head")
+	for _, q := range []string{"INSERT INTO " + itSchema + ".audit_record SELECT * FROM " + itSchema + ".au14_kept",
+		"DELETE FROM " + itSchema + ".audit_chain_break"} {
+		_, err = admin.Exec(ctx, q)
+		require.NoError(t, err)
+	}
+	time.Sleep(2500 * time.Millisecond)
+	require.Zero(t, breaks(), "put back: the chain verifies again")
+
+	// one taken out of the middle: the break is at the record after it
+	_, err = admin.Exec(ctx, "DELETE FROM "+itSchema+".audit_record WHERE id = $1", batch[1].ID)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool { return breaks() == 1 }, 10*time.Second, 200*time.Millisecond, "a record taken out")
+	var at int64
+	require.NoError(t, admin.QueryRow(ctx, "SELECT at_seq FROM "+itSchema+".audit_chain_break").Scan(&at))
+	assert.Equal(t, int64(3), at, "the record after the one taken out")
 }
 
 // portFree fails at once when a port the member needs is taken: a running cell (host ports 18xxx) or another member

@@ -6,9 +6,10 @@
 
 | 位置 | 内容 |
 | --- | --- |
-| `audit/audit.go` | 组件定义、配置键、系统面（接收与水位）、用户面（查询） |
+| `audit/audit.go` | 组件定义、配置键、系统面（接收与水位）、用户面（查询：按调用者的授予裁剪字段，查询本身先写一条敏感读取的审计，AU13） |
+| `audit/chain.go` | 链校验（协议 03 的 AU14）：单例作业按 `AUDIT_CHAIN_CHECK_INTERVAL` 逐个来源按存储顺序核对每条记录的字节与摘要、重算链、对照链头；断了就写 `audit_chain_break` 并记错误级日志 `audit_chain_broken` |
 | `audit/evidence.go` | 证据存储（P12.9–P12.13）：`EvidenceService.Append` 的核对与只收一次、`List` |
-| `audit/migrations/` | 表：记录、存储计数、纪元历史、来源、备份 |
+| `audit/migrations/` | 表：记录、存储计数、纪元历史、来源、备份、链的断点 |
 | `contract/` | 本组件发布的契约，是一个单独的模块 |
 | `docs/design.md` | 设计：术语、数据、规则、命令、实现状态、未决问题 |
 

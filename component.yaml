@@ -4,7 +4,7 @@ kind: Component
 metadata:
   id: infra/audit
   name: Audit
-  version: 3.0.19
+  version: 3.0.20
   description: "The audit component: every component's audit records taken over the system surface, idempotently by source and ID, with receipts, the backed-up watermark and the query; the evidence store comes with protocol 15"
   repository: https://github.com/brickKit/infra-audit
 
@@ -36,6 +36,9 @@ local:
 
 configSchema:
   properties:
+    AUDIT_CHAIN_CHECK_INTERVAL:
+      description: a duration (e.g. 2s, 500ms); SDK default 86400s
+      type: string
     AUDIT_EVIDENCE_READERS:
       description: the components that may list the evidence (comma-separated component IDs); default ops/recover, the recovery tool; SDK default ops/recover
       type: string

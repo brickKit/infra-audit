@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/brickKit/be-sdk-go/v3/audit"
 	sdkauthz "github.com/brickKit/be-sdk-go/v3/authz"
 	"github.com/brickKit/be-sdk-go/v3/component"
 	"github.com/brickKit/be-sdk-go/v3/config"
@@ -32,7 +33,7 @@ import (
 // Identity of the component, its resources and operations.
 const (
 	ID          = "infra/audit"
-	Version     = "3.0.19"
+	Version     = "3.0.20"
 	GRPCPort    = 9206
 	Records     = "infra.audit.record"
 	OpRead      = "infra.audit.record.read"
@@ -44,6 +45,8 @@ const (
 	OpAppend    = "infra.audit.evidence.append"
 	OpList      = "infra.audit.evidence.list"
 	MaxBatch    = 500
+	// DefaultChainCheck is how often the chains are verified by default (AU14): every record is read each time.
+	DefaultChainCheck = 24 * time.Hour
 	// DefaultEvidenceReader is the recovery tool's service identity.
 	DefaultEvidenceReader = "ops/recover"
 )
@@ -54,6 +57,8 @@ func Keys() []config.Key {
 		// the components that may list the evidence (P12.13), comma-separated component IDs; by default the recovery
 		// tool's service identity (be-ops recover, A136)
 		{Name: "AUDIT_EVIDENCE_READERS", Type: config.String, Default: DefaultEvidenceReader},
+		// how often every source's chain is verified (AU14: a record changed or taken out is an integrity event)
+		{Name: "AUDIT_CHAIN_CHECK_INTERVAL", Type: config.Duration, Default: DefaultChainCheck},
 	}
 }
 
@@ -76,7 +81,7 @@ func Definitions() *sdkauthz.Definitions {
 			{Type: Intake, ViewOperation: IntakeRead, Dimensions: none, Fields: map[string]sdkauthz.Field{}},
 			{Type: Evidence, ViewOperation: OpList, Dimensions: none, Fields: map[string]sdkauthz.Field{}}},
 		Operations: []sdkauthz.Operation{
-			{Key: OpRead, ResourceType: Records, Purpose: "special_read", RiskClass: "low"},
+			{Key: OpRead, ResourceType: Records, Purpose: "special_read", RiskClass: "low", Audit: true}, // AU13
 			{Key: IntakeRead, ResourceType: Intake, Purpose: "read", RiskClass: "low"},
 			{Key: OpSubmit, ResourceType: Intake, Purpose: "action", RiskClass: "low", SideEffects: []string{"business_write"}},
 			{Key: OpWatermark, ResourceType: Intake, Purpose: "read", RiskClass: "low"},
@@ -259,10 +264,12 @@ func (m *Module) Watermark(ctx context.Context, _ *auditv3.WatermarkRequest) (*a
 	return out, err
 }
 
-// query lists the latest records, optionally of one source and one operation.
+// query lists the latest records, optionally of one source and one operation (AU13): the caller's grant decides
+// which fields come out (the others null and named under _masked), and the query itself is audited as a sensitive
+// read before anything is released (P8.19: no record, no answer).
 func (m *Module) query(c *httpx.Context) error {
 	s, _ := sdkauthz.From(c.Ctx())
-	ctx, _, err := s.Check(c.Ctx(), OpRead, sdkauthz.Facts{})
+	ctx, d, err := s.Check(c.Ctx(), OpRead, sdkauthz.Facts{})
 	if err != nil {
 		return err
 	}
@@ -301,5 +308,16 @@ func (m *Module) query(c *httpx.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(200, map[string]any{"records": out})
+	res := Definitions().Resources[0] // the audit records
+	shaped := make([]map[string]any, 0, len(out))
+	for _, r := range out {
+		shaped = append(shaped, sdkauthz.Mask(&res, map[string]any{"source": r.Source, "id": r.ID, "record": r.Record,
+			"received_at": r.ReceivedAt}, d.Fields))
+	}
+	if err := m.rt.Audit.Read(ctx, audit.Record{Operation: OpRead, Outcome: audit.Succeeded, Actor: s.Principal,
+		Target: map[string]any{"type": Records}, Request: map[string]any{"source": c.Query("source"),
+			"operation": c.Query("operation"), "returned": len(shaped)}}); err != nil {
+		return err
+	}
+	return c.JSON(200, map[string]any{"records": shaped})
 }
