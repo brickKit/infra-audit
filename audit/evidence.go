@@ -28,7 +28,7 @@ var Categories = []string{"security_tightening", "security_widening", "employmen
 	"account_status", "account_reenable", "identity_signing_key_revocation", "credential_tightening",
 	"credential_tightening_in_product", "session_revocation", "recovery_credential_rotation", "document_number",
 	"member_switch_handover", "destruction", "external_command_issued", "external_command_outcome", "trust_material",
-	"deployment_generation", "authz_generation"}
+	"deployment_generation", "authz_generation", "evidence_double_failure"}
 
 // evidence is the part of a record the store checks and compares (P12.9, P12.10).
 type evidence struct {
