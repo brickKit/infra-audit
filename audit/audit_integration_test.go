@@ -293,6 +293,25 @@ func TestAuditEndToEnd(t *testing.T) {
 	time.Sleep(2500 * time.Millisecond)
 	require.Zero(t, breaks(), "put back: the chain verifies again")
 
+	// the first record taken out (nothing of the source was ever archived): the chain starts there, so the break is
+	// at the record after it (A158: only records that left by a release let the chain start mid-way)
+	var firstID string
+	require.NoError(t, admin.QueryRow(ctx, "SELECT id::text FROM "+itSchema+".audit_record WHERE source = 'demo/orders' "+
+		"ORDER BY storage_seq LIMIT 1").Scan(&firstID))
+	for _, q := range []string{"CREATE TABLE " + itSchema + ".au14_first AS SELECT * FROM " + itSchema + ".audit_record WHERE id = $1",
+		"DELETE FROM " + itSchema + ".audit_record WHERE id = $1"} {
+		_, err = admin.Exec(ctx, q, firstID)
+		require.NoError(t, err)
+	}
+	require.Eventually(t, func() bool { return breaks() == 1 }, 10*time.Second, 200*time.Millisecond, "the first record taken out")
+	for _, q := range []string{"INSERT INTO " + itSchema + ".audit_record SELECT * FROM " + itSchema + ".au14_first",
+		"DELETE FROM " + itSchema + ".audit_chain_break"} {
+		_, err = admin.Exec(ctx, q)
+		require.NoError(t, err)
+	}
+	time.Sleep(2500 * time.Millisecond)
+	require.Zero(t, breaks(), "put back: the chain verifies again")
+
 	// one taken out of the middle: the break is at the record after it
 	_, err = admin.Exec(ctx, "DELETE FROM "+itSchema+".audit_record WHERE id = $1", batch[1].ID)
 	require.NoError(t, err)

@@ -26,6 +26,7 @@ import (
 	"github.com/brickKit/be-sdk-go/v3/httpx"
 	"github.com/brickKit/be-sdk-go/v3/records"
 	"github.com/brickKit/be-sdk-go/v3/runtime"
+	"github.com/brickKit/be-sdk-go/v3/tiering"
 	auditv3 "github.com/brickKit/infra-audit/contract/v3/gen/go/be/audit/v3"
 	"github.com/jackc/pgx/v5"
 )
@@ -33,7 +34,7 @@ import (
 // Identity of the component, its resources and operations.
 const (
 	ID          = "infra/audit"
-	Version     = "3.0.29"
+	Version     = "3.0.30"
 	GRPCPort    = 9206
 	Records     = "infra.audit.record"
 	OpRead      = "infra.audit.record.read"
@@ -48,6 +49,9 @@ const (
 	OpSystem    = "infra.audit.system.read"
 	// OpRecover is a full recovery's checks (be-protocol chapter 14: the recovery tool only).
 	OpRecover = "infra.audit.system.recover"
+	// OpReplay is the evidence replay (be.evidence.v1.ReplayService): the destructions of audit records after a full
+	// recovery's point are done again (be-protocol P15.30).
+	OpReplay = "infra.audit.system.replay"
 	// OpListRecords is RecordService.List: the configured readers read the audit records (a full recovery's step 9).
 	OpListRecords = "infra.audit.record.list"
 	MaxBatch      = 500
@@ -97,14 +101,26 @@ func Definitions() *sdkauthz.Definitions {
 			{Key: OpList, ResourceType: Evidence, Purpose: "read", RiskClass: "low"},
 			{Key: OpSystem, ResourceType: System, Purpose: "read", RiskClass: "low"},
 			{Key: OpRecover, ResourceType: System, Purpose: "read", RiskClass: "low"},
+			{Key: OpReplay, ResourceType: System, Purpose: "manage", RiskClass: "high", SideEffects: []string{"business_write"}},
+			// a legal hold over audit records and the approval of their deletion at the end of the retention (AU17)
+			{Key: OpHold, ResourceType: Records, Purpose: "manage", RiskClass: "high", Audit: true},
+			{Key: OpApproveDelete, ResourceType: Records, Purpose: "manage", RiskClass: "high", Audit: true},
 		}}
 }
 
 // Definition is the component as the launcher and the shells take it.
 func Definition() component.Definition {
 	return component.Definition{ID: ID, Version: Version, Keys: Keys(), Migrations: migrations(), GRPCPort: GRPCPort, Authz: Definitions(),
-		Recovery: OpRecover,
-		New:      func(rt *runtime.Runtime) (component.Module, error) { return &Module{rt: rt}, nil }}
+		Recovery: OpRecover, Replay: OpReplay, Tiering: []tiering.Class{RecordsClass()},
+		New: func(rt *runtime.Runtime) (component.Module, error) {
+			m := &Module{rt: rt}
+			if rt.Tiering != nil { // the history of the records, archived ones included (P15.26)
+				if err := rt.Tiering.Register(RecordClass, m.reader()); err != nil {
+					return nil, err
+				}
+			}
+			return m, nil
+		}}
 }
 
 // Module is the audit component.
@@ -160,8 +176,12 @@ func (m *Module) Submit(ctx context.Context, in *auditv3.SubmitRequest) (*auditv
 	if len(in.GetItems()) > MaxBatch {
 		return nil, errs.New(errs.ReasonBatchTooLarge, "at most 500 records a call").GRPCStatus().Err()
 	}
+	archived, err := m.archived(ctx, source, in.GetItems()) // before the intake's transaction: no store read inside it
+	if err != nil {
+		return nil, err
+	}
 	out := &auditv3.SubmitResponse{}
-	err := m.rt.DB.Tx(ctx, func(ctx context.Context, tx db.Tx) error {
+	err = m.rt.DB.Tx(ctx, func(ctx context.Context, tx db.Tx) error {
 		out.Receipts = out.Receipts[:0]
 		epoch, err := epochOf(ctx, tx)
 		if err != nil {
@@ -187,7 +207,7 @@ func (m *Module) Submit(ctx context.Context, in *auditv3.SubmitRequest) (*auditv
 			return err
 		}
 		for _, it := range in.GetItems() {
-			r, err := m.item(ctx, tx, source, epoch, &last, &chain, &srcEpoch, &srcLast, it)
+			r, err := m.item(ctx, tx, source, epoch, &last, &chain, &srcEpoch, &srcLast, it, archived[it.GetId()])
 			if err != nil {
 				return err
 			}
@@ -206,7 +226,7 @@ func (m *Module) Submit(ctx context.Context, in *auditv3.SubmitRequest) (*auditv
 
 // item stores one record or explains why not.
 func (m *Module) item(ctx context.Context, tx db.Tx, source, epoch string, last *int64, chain, srcEpoch *string,
-	srcLast *int64, it *auditv3.Item) (*auditv3.Receipt, error) {
+	srcLast *int64, it *auditv3.Item, arch *storedRecord) (*auditv3.Receipt, error) {
 	rec, err := records.Open("be.audit.record", it.GetRecord(), it.GetDigest())
 	if err != nil || rec["id"] != it.GetId() {
 		m.rt.Logger.Error("an audit record was refused as invalid (integrity event)", "source", source, "id", it.GetId())
@@ -216,6 +236,9 @@ func (m *Module) item(ctx context.Context, tx db.Tx, source, epoch string, last 
 	var seq int64
 	err = tx.QueryRow(ctx, "SELECT digest, epoch, storage_seq, chain FROM audit_record WHERE source = $1 AND id = $2",
 		source, it.GetId()).Scan(&digest, &recEpoch, &seq, &recChain)
+	if errors.Is(err, pgx.ErrNoRows) && arch != nil { // stored before and archived since: its archived copy answers
+		digest, recEpoch, seq, recChain, err = arch.digest, arch.epoch, arch.seq, arch.chain, nil
+	}
 	switch {
 	case err == nil && digest == it.GetDigest(): // stored before: the original receipt
 		return &auditv3.Receipt{Id: it.GetId(), Status: auditv3.ReceiptStatus_RECEIPT_STATUS_RECEIVED, Epoch: recEpoch,
@@ -235,9 +258,9 @@ func (m *Module) item(ctx context.Context, tx db.Tx, source, epoch string, last 
 	}
 	*last++
 	*chain = chainNext(*chain, it.GetDigest())
-	if _, err := tx.Exec(ctx, `INSERT INTO audit_record (source, id, digest, record, source_seq, source_epoch, epoch, storage_seq, chain)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`, source, it.GetId(), it.GetDigest(), it.GetRecord(), it.GetSeq(),
-		it.GetEpoch(), epoch, *last, *chain); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO audit_record (source, id, digest, record, source_seq, source_epoch, epoch, storage_seq,
+		chain, rkey) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`, source, it.GetId(), it.GetDigest(),
+		it.GetRecord(), it.GetSeq(), it.GetEpoch(), epoch, *last, *chain, source+"/"+it.GetId()); err != nil {
 		return nil, err
 	}
 	return &auditv3.Receipt{Id: it.GetId(), Status: auditv3.ReceiptStatus_RECEIPT_STATUS_RECEIVED, Epoch: epoch, Seq: *last,
@@ -285,6 +308,9 @@ func (m *Module) query(c *httpx.Context) error {
 	ctx, d, err := s.Check(c.Ctx(), OpRead, sdkauthz.Facts{})
 	if err != nil {
 		return err
+	}
+	if c.Query("history") == "true" && m.rt.Tiering != nil {
+		return m.history(c, ctx, s)
 	}
 	limit := 100
 	if n, err := strconv.Atoi(c.Query("limit")); err == nil && n > 0 && n <= 500 {

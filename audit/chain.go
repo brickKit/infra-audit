@@ -82,13 +82,17 @@ func (m *Module) chainCheck(ctx context.Context, _ *work.Run) error {
 // verifyChain walks one source's records in storage order (the audit database's epochs in order, then the storage
 // sequence); nil when the chain holds up to its head.
 func verifyChain(ctx context.Context, tx db.Tx, source, headChain string) (*chainBreak, error) {
+	archived, err := releasedBefore(ctx, tx, source)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := tx.Query(ctx, `SELECT epoch, storage_seq, digest, record, chain FROM audit_record WHERE source = $1
 		ORDER BY split_part(epoch, '.', 1)::bigint, split_part(epoch, '.', 2)::bigint, storage_seq`, source)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	chain, epoch, seq := "", "", int64(0)
+	chain, epoch, seq, first := "", "", int64(0), true
 	for rows.Next() {
 		var digest, stored string
 		var raw []byte
@@ -98,7 +102,11 @@ func verifyChain(ctx context.Context, tx db.Tx, source, headChain string) (*chai
 		if _, err := records.Open("be.audit.record", raw, digest); err != nil {
 			return &chainBreak{source, epoch, "the record's bytes are not its digest: " + err.Error(), seq}, nil
 		}
-		chain = chainNext(chain, digest)
+		next := chainNext(chain, digest)
+		if first && next != stored && archived { // the records before it left the table (their unit's digest
+			next = stored // protects them, A158): the chain starts here
+		}
+		first, chain = false, next
 		if chain != stored {
 			return &chainBreak{source, epoch, "the chain does not follow from the records before (one taken out or put in)", seq}, nil
 		}
@@ -110,4 +118,12 @@ func verifyChain(ctx context.Context, tx db.Tx, source, headChain string) (*chai
 		return &chainBreak{source, epoch, fmt.Sprintf("the head is %s, the records give %s (taken off the end)", headChain, chain), seq}, nil
 	}
 	return nil, nil
+}
+
+// releasedBefore says whether a source has records whose online rows were released (archived or destroyed).
+func releasedBefore(ctx context.Context, tx db.Tx, source string) (bool, error) {
+	var ok bool
+	err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM be_tier_member m JOIN be_tier_unit u ON u.id = m.unit
+		WHERE m.class = $1 AND u.state IN ('released', 'destroyed') AND left(m.root_id, length($2) + 1) = $2 || '/')`, RecordClass, source).Scan(&ok)
+	return ok, err
 }

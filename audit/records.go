@@ -35,7 +35,9 @@ func parsePosition(p string) (string, int64, error) {
 }
 
 // List is RecordService.List: the records that occurred at or after since, by category, in the store's order after a
-// position, 500 a page at most (a full recovery's loss range, assembly protocol 15 step 9).
+// position, 500 a page at most (a full recovery's loss range, assembly protocol 15 step 9). Only the online records:
+// a range that reaches records which left the online table answers QUERY_NOT_COMPLETABLE (a recovery's range is
+// days, the records stay online a year).
 func (r recordList) List(ctx context.Context, in *auditv3.RecordServiceListRequest) (*auditv3.RecordServiceListResponse, error) {
 	since, err := time.Parse(time.RFC3339Nano, in.GetSince())
 	if err != nil {
@@ -55,6 +57,16 @@ func (r recordList) List(ctx context.Context, in *auditv3.RecordServiceListReque
 	out := &auditv3.RecordServiceListResponse{}
 	err = r.m.rt.DB.Tx(ctx, func(ctx context.Context, tx db.Tx) error {
 		out.Records = out.Records[:0]
+		// records received in the range may have left the online table: never a part of them (A158, P15.26)
+		var gone bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM be_tier_unit WHERE class = $1 AND state IN ('released',
+			'destroyed') AND anchor_max >= $2::timestamptz - make_interval(secs => $3))`, RecordClass, since,
+			recordSkew.Seconds()).Scan(&gone); err != nil {
+			return err
+		}
+		if gone {
+			return errs.New(errs.ReasonQueryNotCompletable, "records of the range have left the online table (archived)")
+		}
 		rows, err := tx.Query(ctx, `SELECT source, record, source_epoch, source_seq, epoch, storage_seq FROM audit_record
 			WHERE received_at >= $1::timestamptz - make_interval(secs => $2)
 			  AND (convert_from(record, 'UTF8')::jsonb ->> 'occurred_at')::timestamptz >= $1::timestamptz

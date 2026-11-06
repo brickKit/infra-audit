@@ -4,7 +4,7 @@ kind: Component
 metadata:
   id: infra/audit
   name: Audit
-  version: 3.0.29
+  version: 3.0.30
   description: "The audit component: every component's audit records taken over the system surface, idempotently by source and ID, with receipts, the backed-up watermark and the query; the evidence store comes with protocol 15"
   repository: https://github.com/brickKit/infra-audit
 
@@ -36,6 +36,8 @@ local:
 
 configSchema:
   properties:
+    ALERT_WEBHOOK_URL:
+      type: string
     AUDIT_CHAIN_CHECK_INTERVAL:
       description: a duration (e.g. 2s, 500ms); SDK default 86400s
       type: string
@@ -118,6 +120,18 @@ configSchema:
         - verifying
         - read_only
       type: string
+    RUN_PROFILE_ACCESS_KEY:
+      type: string
+    RUN_PROFILE_BUCKET:
+      type: string
+    RUN_PROFILE_REGION:
+      description: SDK default us-east-1
+      type: string
+    RUN_PROFILE_SECRET_KEY:
+      secret: true
+      type: string
+    RUN_PROFILE_URL:
+      type: string
     SERVICE_TLS_CA_FILE:
       description: a file path, re-read on rotation
       mount: file
@@ -138,6 +152,45 @@ configSchema:
       type: string
     STOP_TIMEOUT:
       description: a duration (e.g. 2s, 500ms); SDK default 30s
+      type: string
+    TIERING_BUCKET:
+      description: SDK default be-tiering
+      type: string
+    TIERING_COLD_CONCURRENCY:
+      description: SDK default 4
+      type: integer
+    TIERING_COLD_SYNC_LIMIT:
+      description: a duration (e.g. 2s, 500ms); SDK default 10s
+      type: string
+    TIERING_DELETE_ACCESS_KEY:
+      type: string
+    TIERING_DELETE_SECRET_KEY:
+      secret: true
+      type: string
+    TIERING_GRACE:
+      description: a duration (e.g. 2s, 500ms); SDK default 604800s
+      type: string
+    TIERING_LIST_DAYS:
+      description: SDK default 90
+      type: integer
+    TIERING_READ_ACCESS_KEY:
+      type: string
+    TIERING_READ_SECRET_KEY:
+      secret: true
+      type: string
+    TIERING_RESIDENCE_INFRA_AUDIT_RECORDS:
+      type: string
+    TIERING_RETENTION_INFRA_AUDIT_RECORDS:
+      type: string
+    TIERING_STORE_URL:
+      type: string
+    TIERING_WINDOW:
+      description: SDK default 0 2 * * *
+      type: string
+    TIERING_WRITE_ACCESS_KEY:
+      type: string
+    TIERING_WRITE_SECRET_KEY:
+      secret: true
       type: string
   required:
     - PG_DATABASE
