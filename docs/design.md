@@ -59,6 +59,8 @@
 
 ## 实现状态
 
+3.0.36：be-sdk-go alpha.117（全系统同一个 SDK 版本；SDK 加了预占的参与方 `reserve`，线协议第 16 章）
+
 3.0.35：合并安全的单元测试扩到 `internal/` 下全部包（分层以来只查入口包，装配项目的结构问题 SF24）；补上 `Makefile`（`make test`、`make test-integration`，结构问题 SF09）。
 
 3.0.34：代码按业务模块分层，行为不变：入口包 `audit/` 只组装，业务在 `internal/` 下（`intake`、`chain`、`evidence`、`reading`、`archive`、`core`），集成测试在 `itest/`、按业务流程分文件；每个代码目录一份 `AGENTS.md`。
