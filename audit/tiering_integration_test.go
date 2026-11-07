@@ -120,13 +120,31 @@ func TestTheAuditRecordsTier(t *testing.T) {
 	require.NoError(t, admin.QueryRow(ctx, "SELECT count(*) FROM audit_record").Scan(&online))
 	require.Zero(t, online, "the online rows are released")
 
+	// every record of the source released, none online since (3.0.32; the real cell T5-S found 3.0.31 reporting a break
+	// here): the head is the archive's last record's chain; a head that is not is a break
+	breaks := func() int {
+		var n int
+		require.NoError(t, admin.QueryRow(ctx, "SELECT count(*) FROM audit_chain_break").Scan(&n))
+		return n
+	}
+	time.Sleep(2500 * time.Millisecond) // the chain check runs every second
+	require.Zero(t, breaks(), "every record released: the chain ends in the archive")
+	var head string
+	require.NoError(t, admin.QueryRow(ctx, "SELECT chain FROM audit_source WHERE source = 'demo/orders'").Scan(&head))
+	_, err = admin.Exec(ctx, "UPDATE audit_source SET chain = 'sha256:' || repeat('0', 64) WHERE source = 'demo/orders'")
+	require.NoError(t, err)
+	require.Eventually(t, func() bool { return breaks() == 1 }, 5*time.Second, 100*time.Millisecond,
+		"a head the archive's last record does not give is a break")
+	_, err = admin.Exec(ctx, "UPDATE audit_source SET chain = $1 WHERE source = 'demo/orders'", head)
+	require.NoError(t, err)
+	_, err = admin.Exec(ctx, "DELETE FROM audit_chain_break")
+	require.NoError(t, err)
+
 	assert.Equal(t, first, send(old...), "sent again: the first receipts, from the archive")
 	later := wire(t, 3, "demo.order.ship")
 	assert.Equal(t, "received", send(later)[0].Status)
 	time.Sleep(2500 * time.Millisecond) // the chain check runs every second
-	var breaks int
-	require.NoError(t, admin.QueryRow(ctx, "SELECT count(*) FROM audit_chain_break").Scan(&breaks))
-	assert.Zero(t, breaks, "the chain goes on from the first online record")
+	assert.Zero(t, breaks(), "the chain goes on from the first online record")
 
 	list, err := grpc.NewClient(itSystem, grpc.WithTransportCredentials(credentials.NewTLS(w.TLS(t, DefaultEvidenceReader).ClientConfig(ID))))
 	require.NoError(t, err)

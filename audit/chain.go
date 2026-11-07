@@ -2,10 +2,15 @@ package audit
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/brickKit/be-sdk-go/v3/db"
 	"github.com/brickKit/be-sdk-go/v3/records"
+	"github.com/brickKit/be-sdk-go/v3/tiering"
 	"github.com/brickKit/be-sdk-go/v3/work"
 	"github.com/jackc/pgx/v5"
 )
@@ -31,15 +36,17 @@ type chainBreak struct {
 	seq                   int64
 }
 
+type head struct{ source, chain string }
+
 func (m *Module) chainCheck(ctx context.Context, _ *work.Run) error {
 	var found []chainBreak
+	var archivedOnly []head // every record left the online table: the archive answers for the end of the chain
 	err := m.rt.DB.BackgroundTx(ctx, func(ctx context.Context, tx db.Tx) error {
-		found = nil
+		found, archivedOnly = nil, nil
 		rows, err := tx.Query(ctx, "SELECT source, chain FROM audit_source ORDER BY source")
 		if err != nil {
 			return err
 		}
-		type head struct{ source, chain string }
 		heads, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (head, error) {
 			var h head
 			return h, r.Scan(&h.source, &h.chain)
@@ -48,18 +55,31 @@ func (m *Module) chainCheck(ctx context.Context, _ *work.Run) error {
 			return err
 		}
 		for _, h := range heads {
-			b, err := verifyChain(ctx, tx, h.source, h.chain)
+			b, none, err := verifyChain(ctx, tx, h.source, h.chain)
 			if err != nil {
 				return err
 			}
 			if b != nil {
 				found = append(found, *b)
 			}
+			if none {
+				archivedOnly = append(archivedOnly, h)
+			}
 		}
 		return nil
 	})
 	if err != nil {
 		return err
+	}
+	for _, h := range archivedOnly { // outside the transaction: a store read never runs inside one
+		chain, ok, err := m.lastArchivedChain(ctx, h.source)
+		if err != nil {
+			return err
+		}
+		if ok && chain != h.chain {
+			found = append(found, chainBreak{h.source, "", fmt.Sprintf("the head is %s, the archive's last record gives %s "+
+				"(taken off the end)", h.chain, chain), 0})
+		}
 	}
 	for _, b := range found {
 		m.rt.Logger.Error("an audit chain does not verify (integrity event)", "event", "audit_chain_broken",
@@ -80,16 +100,17 @@ func (m *Module) chainCheck(ctx context.Context, _ *work.Run) error {
 }
 
 // verifyChain walks one source's records in storage order (the audit database's epochs in order, then the storage
-// sequence); nil when the chain holds up to its head.
-func verifyChain(ctx context.Context, tx db.Tx, source, headChain string) (*chainBreak, error) {
+// sequence); nil when the chain holds up to its head. archivedOnly: no record is online and some were released, so the
+// head is the archive's to check (lastArchivedChain).
+func verifyChain(ctx context.Context, tx db.Tx, source, headChain string) (_ *chainBreak, archivedOnly bool, _ error) {
 	archived, err := releasedBefore(ctx, tx, source)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	rows, err := tx.Query(ctx, `SELECT epoch, storage_seq, digest, record, chain FROM audit_record WHERE source = $1
 		ORDER BY split_part(epoch, '.', 1)::bigint, split_part(epoch, '.', 2)::bigint, storage_seq`, source)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	defer rows.Close()
 	chain, epoch, seq, first := "", "", int64(0), true
@@ -97,10 +118,10 @@ func verifyChain(ctx context.Context, tx db.Tx, source, headChain string) (*chai
 		var digest, stored string
 		var raw []byte
 		if err := rows.Scan(&epoch, &seq, &digest, &raw, &stored); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		if _, err := records.Open("be.audit.record", raw, digest); err != nil {
-			return &chainBreak{source, epoch, "the record's bytes are not its digest: " + err.Error(), seq}, nil
+			return &chainBreak{source, epoch, "the record's bytes are not its digest: " + err.Error(), seq}, false, nil
 		}
 		next := chainNext(chain, digest)
 		if first && next != stored && archived { // the records before it left the table (their unit's digest
@@ -108,16 +129,61 @@ func verifyChain(ctx context.Context, tx db.Tx, source, headChain string) (*chai
 		}
 		first, chain = false, next
 		if chain != stored {
-			return &chainBreak{source, epoch, "the chain does not follow from the records before (one taken out or put in)", seq}, nil
+			return &chainBreak{source, epoch, "the chain does not follow from the records before (one taken out or put in)", seq}, false, nil
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, false, err
+	}
+	if first && archived {
+		return nil, true, nil
 	}
 	if chain != headChain {
-		return &chainBreak{source, epoch, fmt.Sprintf("the head is %s, the records give %s (taken off the end)", headChain, chain), seq}, nil
+		return &chainBreak{source, epoch, fmt.Sprintf("the head is %s, the records give %s (taken off the end)", headChain, chain), seq}, false, nil
 	}
-	return nil, nil
+	return nil, false, nil
+}
+
+// lastArchivedChain is the chain of a source's last record when every record left the online table: the record of the
+// last storage position in the source's newest unit, read from the archive. ok=false: that unit was destroyed at the
+// end of its retention (nothing answers for it any more), or there is no catalog.
+func (m *Module) lastArchivedChain(ctx context.Context, source string) (chain string, ok bool, err error) {
+	if m.rt.Tiering == nil {
+		return "", false, nil
+	}
+	var unit, state string
+	err = m.rt.DB.BackgroundTx(ctx, func(ctx context.Context, tx db.Tx) error {
+		return tx.QueryRow(ctx, `SELECT u.id::text, u.state FROM be_tier_member mb JOIN be_tier_unit u ON u.id = mb.unit
+			WHERE mb.class = $1 AND u.state IN ('released', 'destroyed') AND left(mb.root_id, length($2) + 1) = $2 || '/'
+			ORDER BY u.anchor_max DESC, u.id DESC LIMIT 1`, RecordClass, source).Scan(&unit, &state)
+	})
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && state != tiering.StateReleased) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	s, err := m.rt.Tiering.Snapshot(ctx, "the audit chain check")
+	if err != nil {
+		return "", false, err
+	}
+	defer func() { err = errors.Join(err, m.rt.Tiering.End(context.WithoutCancel(ctx), s)) }()
+	aggs, err := m.rt.Tiering.ReadUnit(ctx, s, unit, nil)
+	if err != nil {
+		return "", false, err
+	}
+	var last [3]int64 // the epoch's two parts and the storage sequence: the order verifyChain walks
+	for _, a := range aggs {
+		var at [3]int64
+		major, minor, _ := strings.Cut(fmt.Sprint(a.Root["epoch"]), ".")
+		at[0], _ = strconv.ParseInt(major, 10, 64)
+		at[1], _ = strconv.ParseInt(minor, 10, 64)
+		at[2], _ = strconv.ParseInt(fmt.Sprint(a.Root["storage_seq"]), 10, 64)
+		if fmt.Sprint(a.Root["source"]) == source && (!ok || slices.Compare(at[:], last[:]) > 0) {
+			last, chain, ok = at, fmt.Sprint(a.Root["chain"]), true
+		}
+	}
+	return chain, ok, nil
 }
 
 // releasedBefore says whether a source has records whose online rows were released (archived or destroyed).
