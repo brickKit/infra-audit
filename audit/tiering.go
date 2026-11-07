@@ -14,6 +14,7 @@ import (
 
 	"github.com/brickKit/be-sdk-go/v3/audit"
 	"github.com/brickKit/be-sdk-go/v3/db"
+	"github.com/brickKit/be-sdk-go/v3/errs"
 	"github.com/brickKit/be-sdk-go/v3/httpx"
 	"github.com/brickKit/be-sdk-go/v3/tiering"
 	auditv3 "github.com/brickKit/infra-audit/contract/v3/gen/go/be/audit/v3"
@@ -79,11 +80,11 @@ func (m *Module) archived(ctx context.Context, source string, items []*auditv3.I
 	out := map[string]*storedRecord{}
 	for _, key := range released {
 		a, found, err := m.rt.Tiering.Get(ctx, RecordClass, key)
+		if errs.Is(err, "be", errs.ReasonNotFound) || (err == nil && !found) {
+			continue // destroyed at the end of its retention (be-protocol P15.29): nothing answers for it any more
+		}
 		if err != nil {
 			return nil, err
-		}
-		if !found { // destroyed at the end of its retention: nothing answers for it any more
-			continue
 		}
 		seq, err := strconv.ParseInt(fmt.Sprint(a.Root["storage_seq"]), 10, 64)
 		if err != nil {
