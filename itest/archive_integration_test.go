@@ -1,6 +1,6 @@
 //go:build integration
 
-package audit
+package itest
 
 import (
 	"bytes"
@@ -13,6 +13,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	audit "github.com/brickKit/infra-audit/v3/audit"
+
+	archive "github.com/brickKit/infra-audit/v3/internal/archive"
+	core "github.com/brickKit/infra-audit/v3/internal/core"
 
 	sdkaudit "github.com/brickKit/be-sdk-go/v3/audit"
 	"github.com/brickKit/be-sdk-go/v3/canon"
@@ -49,13 +54,13 @@ func TestTheAuditRecordsTier(t *testing.T) {
 	require.NoError(t, err)
 
 	w := sectest.New(t)
-	w.GrantAll(sectest.Alice, Definitions())
+	w.GrantAll(sectest.Alice, core.Definitions())
 	portFree(t, itPort, itSystem)
-	env := w.Env(t, ID)
-	for k, v := range map[string]string{"COMPONENT_ID": ID, "COMPONENT_VERSION": Version, "PORT": itPort, "STOP_DRAIN_DELAY": "50ms",
+	env := w.Env(t, core.ID)
+	for k, v := range map[string]string{"COMPONENT_ID": core.ID, "COMPONENT_VERSION": audit.Version, "PORT": itPort, "STOP_DRAIN_DELAY": "50ms",
 		"PG_HOST": "localhost", "PG_DATABASE": itDB, "PG_USER": "postgres", "PG_PASSWORD": pgPassword, "PG_SCHEMA": schema,
 		"PG_OWNER_USER": "postgres", "PG_OWNER_PASSWORD": pgPassword, "AUDIT_CHAIN_CHECK_INTERVAL": "1s",
-		tiering.RetentionKey(RecordClass): "365/3650/the customer's audit retention, region ES"} {
+		tiering.RetentionKey(archive.RecordClass): "365/3650/the customer's audit retention, region ES"} {
 		env[k] = v
 	}
 	var logs bytes.Buffer
@@ -66,7 +71,7 @@ func TestTheAuditRecordsTier(t *testing.T) {
 			t.Log(logs.String())
 		}
 	})
-	def := Definition()
+	def := audit.Definition()
 	built := make(chan *runtime.Runtime, 1)
 	newModule := def.New
 	def.New = func(rt *runtime.Runtime) (component.Module, error) { built <- rt; return newModule(rt) }
@@ -90,7 +95,7 @@ func TestTheAuditRecordsTier(t *testing.T) {
 	assert.Empty(t, cat.PendingRetentions(), "the retention given at deployment")
 	cat.Grace, cat.Backups = 0, func(context.Context) (time.Time, bool, error) { return time.Now().Add(time.Hour), true, nil }
 
-	conn, err := grpc.NewClient(itSystem, grpc.WithTransportCredentials(credentials.NewTLS(w.TLS(t, "demo/orders").ClientConfig(ID))))
+	conn, err := grpc.NewClient(itSystem, grpc.WithTransportCredentials(credentials.NewTLS(w.TLS(t, "demo/orders").ClientConfig(core.ID))))
 	require.NoError(t, err)
 	defer conn.Close()
 	sender := sdkaudit.GRPCSender{Conn: conn}
@@ -106,10 +111,10 @@ func TestTheAuditRecordsTier(t *testing.T) {
 	_, err = admin.Exec(ctx, "UPDATE audit_record SET received_at = now() - interval '800 days'")
 	require.NoError(t, err)
 
-	groups, err := cat.Groupings(ctx, RecordClass)
+	groups, err := cat.Groupings(ctx, archive.RecordClass)
 	require.NoError(t, err)
 	require.Len(t, groups, 1, "one source, one month")
-	sealed, err := cat.Seal(ctx, RecordClass, groups[0])
+	sealed, err := cat.Seal(ctx, archive.RecordClass, groups[0])
 	require.NoError(t, err)
 	_, err = cat.Transfer(ctx, sealed.Unit)
 	require.NoError(t, err)
@@ -146,7 +151,7 @@ func TestTheAuditRecordsTier(t *testing.T) {
 	time.Sleep(2500 * time.Millisecond) // the chain check runs every second
 	assert.Zero(t, breaks(), "the chain goes on from the first online record")
 
-	list, err := grpc.NewClient(itSystem, grpc.WithTransportCredentials(credentials.NewTLS(w.TLS(t, DefaultEvidenceReader).ClientConfig(ID))))
+	list, err := grpc.NewClient(itSystem, grpc.WithTransportCredentials(credentials.NewTLS(w.TLS(t, core.DefaultEvidenceReader).ClientConfig(core.ID))))
 	require.NoError(t, err)
 	defer list.Close()
 	_, err = auditv3.NewRecordServiceClient(list).List(ctx, &auditv3.RecordServiceListRequest{Since: canon.Time(time.Now().Add(-900 * 24 * time.Hour))})
@@ -180,18 +185,18 @@ func TestTheAuditRecordsTier(t *testing.T) {
 	// AU17: the retention has run and the deletion is approved, but a legal hold keeps the records
 	_, err = admin.Exec(ctx, "UPDATE be_tier_unit SET anchor_max = now() - interval '400 days' WHERE id = $1", sealed.Unit)
 	require.NoError(t, err)
-	code, body = call("POST", "/be/tiering/"+RecordClass+"/approvals", `{"scope_kind": "class", "scope": "`+RecordClass+
+	code, body = call("POST", "/be/tiering/"+archive.RecordClass+"/approvals", `{"scope_kind": "class", "scope": "`+archive.RecordClass+
 		`", "reason": "the retention has run"}`)
 	require.Equal(t, http.StatusCreated, code, body)
-	code, body = call("POST", "/be/tiering/"+RecordClass+"/holds", `{"scope_kind": "record", "scope": "`+
-		RecordClass+"/demo/orders/"+old[0].ID+`", "source": "legal", "reason": "a court order"}`)
+	code, body = call("POST", "/be/tiering/"+archive.RecordClass+"/holds", `{"scope_kind": "record", "scope": "`+
+		archive.RecordClass+"/demo/orders/"+old[0].ID+`", "source": "legal", "reason": "a court order"}`)
 	require.Equal(t, http.StatusCreated, code, body)
 	var hold struct{ ID string }
 	require.NoError(t, json.Unmarshal([]byte(body), &hold))
 	why, err = cat.Destroy(ctx, sealed.Unit)
 	require.NoError(t, err)
 	assert.Equal(t, []string{tiering.WhyHeld}, why, "AU17: held, not deleted")
-	code, body = call("POST", "/be/tiering/"+RecordClass+"/holds/"+hold.ID+"/lift", "")
+	code, body = call("POST", "/be/tiering/"+archive.RecordClass+"/holds/"+hold.ID+"/lift", "")
 	require.Equal(t, http.StatusNoContent, code, body)
 	why, err = cat.Destroy(ctx, sealed.Unit)
 	require.NoError(t, err)

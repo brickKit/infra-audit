@@ -1,4 +1,4 @@
-package audit
+package archive
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strconv"
 	"time"
+
+	core "github.com/brickKit/infra-audit/v3/internal/core"
 
 	sdkauthz "github.com/brickKit/be-sdk-go/v3/authz"
 
@@ -27,9 +29,7 @@ import (
 // deployment (TIERING_RETENTION_INFRA_AUDIT_RECORDS). No erasable column: an erasure request pseudonymizes the
 // subject's references, by rules the data lifecycle sets (protocol 03's open item), never the audit fact.
 const (
-	RecordClass     = "infra.audit.records"
-	OpHold          = "infra.audit.record.hold"
-	OpApproveDelete = "infra.audit.record.approve_destruction"
+	RecordClass = "infra.audit.records"
 	// Residence is how long a record stays in the online table (days).
 	Residence = 365
 )
@@ -44,21 +44,21 @@ func RecordsClass() tiering.Class {
 			"received_at": tiering.TypeTimestamptz}},
 		Group: []string{"source"}, Anchor: "received_at", Created: "received_at", Terminal: "true",
 		ResidenceDays: Residence, Retention: tiering.Retention{Pending: true}, Locate: []string{"source"},
-		Routes: []string{tiering.RoutePostgres}, SchemaVersion: "1", HoldOperation: OpHold,
-		ApproveOperation: OpApproveDelete}
+		Routes: []string{tiering.RoutePostgres}, SchemaVersion: "1", HoldOperation: core.OpHold,
+		ApproveOperation: core.OpApproveDelete}
 }
 
-// storedRecord is what a receipt needs of a stored record.
-type storedRecord struct {
-	digest, epoch, chain string
-	seq                  int64
+// StoredRecord is what a receipt needs of a stored record.
+type StoredRecord struct {
+	Digest, Epoch, Chain string `json:"-"`
+	Seq                  int64  `json:"-"`
 }
 
-// archived answers, for a batch's items, the stored records whose online rows were released: read from the archive
+// Archived answers, for a batch's items, the stored records whose online rows were released: read from the archive
 // before the intake's transaction (a store read never runs inside it). A record released between this read and the
 // transaction makes the insert fail on the write barrier; the source sends again and this read finds it.
-func (m *Module) archived(ctx context.Context, source string, items []*auditv3.Item) (map[string]*storedRecord, error) {
-	if m.rt.Tiering == nil || len(items) == 0 {
+func Archived(m *core.Base, ctx context.Context, source string, items []*auditv3.Item) (map[string]*StoredRecord, error) {
+	if m.RT.Tiering == nil || len(items) == 0 {
 		return nil, nil
 	}
 	keys := make([]string, 0, len(items))
@@ -66,7 +66,7 @@ func (m *Module) archived(ctx context.Context, source string, items []*auditv3.I
 		keys = append(keys, source+"/"+it.GetId())
 	}
 	var released []string
-	if err := m.rt.DB.Tx(ctx, func(ctx context.Context, tx db.Tx) error {
+	if err := m.RT.DB.Tx(ctx, func(ctx context.Context, tx db.Tx) error {
 		rows, err := tx.Query(ctx, `SELECT m.root_id FROM be_tier_member m JOIN be_tier_unit u ON u.id = m.unit
 			WHERE m.class = $1 AND m.root_id = ANY($2) AND u.state IN ('released', 'destroyed')`, RecordClass, keys)
 		if err != nil {
@@ -77,9 +77,9 @@ func (m *Module) archived(ctx context.Context, source string, items []*auditv3.I
 	}); err != nil {
 		return nil, err
 	}
-	out := map[string]*storedRecord{}
+	out := map[string]*StoredRecord{}
 	for _, key := range released {
-		a, found, err := m.rt.Tiering.Get(ctx, RecordClass, key)
+		a, found, err := m.RT.Tiering.Get(ctx, RecordClass, key)
 		if errs.Is(err, "be", errs.ReasonNotFound) || (err == nil && !found) {
 			continue // destroyed at the end of its retention (be-protocol P15.29): nothing answers for it any more
 		}
@@ -90,8 +90,8 @@ func (m *Module) archived(ctx context.Context, source string, items []*auditv3.I
 		if err != nil {
 			return nil, err
 		}
-		out[fmt.Sprint(a.Root["id"])] = &storedRecord{digest: fmt.Sprint(a.Root["digest"]), epoch: fmt.Sprint(a.Root["epoch"]),
-			chain: fmt.Sprint(a.Root["chain"]), seq: seq}
+		out[fmt.Sprint(a.Root["id"])] = &StoredRecord{Digest: fmt.Sprint(a.Root["digest"]), Epoch: fmt.Sprint(a.Root["epoch"]),
+			Chain: fmt.Sprint(a.Root["chain"]), Seq: seq}
 	}
 	return out, nil
 }
@@ -104,16 +104,16 @@ type historyParams struct {
 
 // shaped is a record as the query answers it, masked to the caller's fields (AU13).
 func shaped(source, id string, record []byte, receivedAt string, fields []string) map[string]any {
-	res := Definitions().Resources[0] // the audit records
+	res := core.Definitions().Resources[0] // the audit records
 	return sdkauthz.Mask(&res, map[string]any{"source": source, "id": id, "record": json.RawMessage(record),
 		"received_at": receivedAt}, fields)
 }
 
-// reader reads the audit records' history (P15.26): the online part with the query's filters, the archived records
+// Reader reads the audit records' history (P15.26): the online part with the query's filters, the archived records
 // selected by the same filters; no dimension, so every record is visible to whoever may query.
-func (m *Module) reader() tiering.Reader {
+func Reader(m *core.Base) tiering.Reader {
 	cl := RecordsClass()
-	return tiering.Reader{Op: OpRead,
+	return tiering.Reader{Op: core.OpRead,
 		Facts: func(map[string]any) sdkauthz.Facts { return sdkauthz.Facts{} },
 		Match: func(root map[string]any, raw json.RawMessage) bool {
 			var p historyParams
@@ -140,7 +140,7 @@ func (m *Module) reader() tiering.Reader {
 			emit func(map[string]any) error) error {
 			var p historyParams
 			_ = json.Unmarshal(raw, &p)
-			ctx, decide, err := sub.Decider(ctx, OpRead)
+			ctx, decide, err := sub.Decider(ctx, core.OpRead)
 			if err != nil {
 				return err
 			}
@@ -167,12 +167,12 @@ func (m *Module) reader() tiering.Reader {
 		}}
 }
 
-// history answers the query over every record of the filters, the archived ones included (P15.26): complete within
+// History answers the query over every record of the filters, the archived ones included (P15.26): complete within
 // the limit, else 202 with the export it became (its status at /be/tiering/infra.audit.records/exports/{id}); the
 // query is audited as a sensitive read before anything is released, as the online one.
-func (m *Module) history(c *httpx.Context, ctx context.Context, s *sdkauthz.Subject) error {
+func History(m *core.Base, c *httpx.Context, ctx context.Context, s *sdkauthz.Subject) error {
 	params, _ := json.Marshal(historyParams{Source: c.Query("source"), Operation: c.Query("operation")})
-	out, pending, err := m.rt.Tiering.History(ctx, s, RecordClass, params)
+	out, pending, err := m.RT.Tiering.History(ctx, s, RecordClass, params)
 	if err != nil {
 		return err
 	}
@@ -180,8 +180,8 @@ func (m *Module) history(c *httpx.Context, ctx context.Context, s *sdkauthz.Subj
 	if pending != nil {
 		returned = -1
 	}
-	if err := m.rt.Audit.Read(ctx, audit.Record{Operation: OpRead, Outcome: audit.Succeeded, Actor: s.Principal,
-		Target: map[string]any{"type": Records}, Request: map[string]any{"source": c.Query("source"),
+	if err := m.RT.Audit.Read(ctx, audit.Record{Operation: core.OpRead, Outcome: audit.Succeeded, Actor: s.Principal,
+		Target: map[string]any{"type": core.Records}, Request: map[string]any{"source": c.Query("source"),
 			"operation": c.Query("operation"), "history": true, "returned": returned}}); err != nil {
 		return err
 	}

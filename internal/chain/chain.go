@@ -1,4 +1,4 @@
-package audit
+package chain
 
 import (
 	"context"
@@ -7,6 +7,9 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	archive "github.com/brickKit/infra-audit/v3/internal/archive"
+	core "github.com/brickKit/infra-audit/v3/internal/core"
 
 	"github.com/brickKit/be-sdk-go/v3/db"
 	"github.com/brickKit/be-sdk-go/v3/records"
@@ -24,13 +27,6 @@ import (
 // JobChainCheck verifies every source's chain at AUDIT_CHAIN_CHECK_INTERVAL.
 const JobChainCheck = "infra.audit.chain_check"
 
-// Jobs registers the chain check.
-func (m *Module) Jobs(j *work.Jobs) error {
-	j.Add(work.Job{Name: JobChainCheck, Kind: work.Singleton, Effect: work.Local, MaxAttempts: work.Unlimited,
-		Interval: m.rt.Config.Duration("AUDIT_CHAIN_CHECK_INTERVAL"), Handle: m.chainCheck})
-	return nil
-}
-
 type chainBreak struct {
 	source, epoch, detail string
 	seq                   int64
@@ -38,10 +34,10 @@ type chainBreak struct {
 
 type head struct{ source, chain string }
 
-func (m *Module) chainCheck(ctx context.Context, _ *work.Run) error {
+func ChainCheck(m *core.Base, ctx context.Context, _ *work.Run) error {
 	var found []chainBreak
 	var archivedOnly []head // every record left the online table: the archive answers for the end of the chain
-	err := m.rt.DB.BackgroundTx(ctx, func(ctx context.Context, tx db.Tx) error {
+	err := m.RT.DB.BackgroundTx(ctx, func(ctx context.Context, tx db.Tx) error {
 		found, archivedOnly = nil, nil
 		rows, err := tx.Query(ctx, "SELECT source, chain FROM audit_source ORDER BY source")
 		if err != nil {
@@ -72,7 +68,7 @@ func (m *Module) chainCheck(ctx context.Context, _ *work.Run) error {
 		return err
 	}
 	for _, h := range archivedOnly { // outside the transaction: a store read never runs inside one
-		chain, ok, err := m.lastArchivedChain(ctx, h.source)
+		chain, ok, err := lastArchivedChain(m, ctx, h.source)
 		if err != nil {
 			return err
 		}
@@ -82,13 +78,13 @@ func (m *Module) chainCheck(ctx context.Context, _ *work.Run) error {
 		}
 	}
 	for _, b := range found {
-		m.rt.Logger.Error("an audit chain does not verify (integrity event)", "event", "audit_chain_broken",
+		m.RT.Logger.Error("an audit chain does not verify (integrity event)", "event", "audit_chain_broken",
 			"source", b.source, "epoch", b.epoch, "seq", b.seq, "detail", b.detail)
 	}
 	if len(found) == 0 {
 		return nil
 	}
-	return m.rt.DB.BackgroundTx(ctx, func(ctx context.Context, tx db.Tx) error {
+	return m.RT.DB.BackgroundTx(ctx, func(ctx context.Context, tx db.Tx) error {
 		for _, b := range found {
 			if _, err := tx.Exec(ctx, `INSERT INTO audit_chain_break (source, at_epoch, at_seq, detail) VALUES ($1, $2, $3, $4)
 				ON CONFLICT DO NOTHING`, b.source, b.epoch, b.seq, b.detail); err != nil {
@@ -123,7 +119,7 @@ func verifyChain(ctx context.Context, tx db.Tx, source, headChain string) (_ *ch
 		if _, err := records.Open("be.audit.record", raw, digest); err != nil {
 			return &chainBreak{source, epoch, "the record's bytes are not its digest: " + err.Error(), seq}, false, nil
 		}
-		next := chainNext(chain, digest)
+		next := core.ChainNext(chain, digest)
 		if first && next != stored && archived { // the records before it left the table (their unit's digest
 			next = stored // protects them, A158): the chain starts here
 		}
@@ -147,15 +143,15 @@ func verifyChain(ctx context.Context, tx db.Tx, source, headChain string) (_ *ch
 // lastArchivedChain is the chain of a source's last record when every record left the online table: the record of the
 // last storage position in the source's newest unit, read from the archive. ok=false: that unit was destroyed at the
 // end of its retention (nothing answers for it any more), or there is no catalog.
-func (m *Module) lastArchivedChain(ctx context.Context, source string) (chain string, ok bool, err error) {
-	if m.rt.Tiering == nil {
+func lastArchivedChain(m *core.Base, ctx context.Context, source string) (chain string, ok bool, err error) {
+	if m.RT.Tiering == nil {
 		return "", false, nil
 	}
 	var unit, state string
-	err = m.rt.DB.BackgroundTx(ctx, func(ctx context.Context, tx db.Tx) error {
+	err = m.RT.DB.BackgroundTx(ctx, func(ctx context.Context, tx db.Tx) error {
 		return tx.QueryRow(ctx, `SELECT u.id::text, u.state FROM be_tier_member mb JOIN be_tier_unit u ON u.id = mb.unit
 			WHERE mb.class = $1 AND u.state IN ('released', 'destroyed') AND left(mb.root_id, length($2) + 1) = $2 || '/'
-			ORDER BY u.anchor_max DESC, u.id DESC LIMIT 1`, RecordClass, source).Scan(&unit, &state)
+			ORDER BY u.anchor_max DESC, u.id DESC LIMIT 1`, archive.RecordClass, source).Scan(&unit, &state)
 	})
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && state != tiering.StateReleased) {
 		return "", false, nil
@@ -163,12 +159,12 @@ func (m *Module) lastArchivedChain(ctx context.Context, source string) (chain st
 	if err != nil {
 		return "", false, err
 	}
-	s, err := m.rt.Tiering.Snapshot(ctx, "the audit chain check")
+	s, err := m.RT.Tiering.Snapshot(ctx, "the audit chain check")
 	if err != nil {
 		return "", false, err
 	}
-	defer func() { err = errors.Join(err, m.rt.Tiering.End(context.WithoutCancel(ctx), s)) }()
-	aggs, err := m.rt.Tiering.ReadUnit(ctx, s, unit, nil)
+	defer func() { err = errors.Join(err, m.RT.Tiering.End(context.WithoutCancel(ctx), s)) }()
+	aggs, err := m.RT.Tiering.ReadUnit(ctx, s, unit, nil)
 	if err != nil {
 		return "", false, err
 	}
@@ -190,6 +186,6 @@ func (m *Module) lastArchivedChain(ctx context.Context, source string) (chain st
 func releasedBefore(ctx context.Context, tx db.Tx, source string) (bool, error) {
 	var ok bool
 	err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM be_tier_member m JOIN be_tier_unit u ON u.id = m.unit
-		WHERE m.class = $1 AND u.state IN ('released', 'destroyed') AND left(m.root_id, length($2) + 1) = $2 || '/')`, RecordClass, source).Scan(&ok)
+		WHERE m.class = $1 AND u.state IN ('released', 'destroyed') AND left(m.root_id, length($2) + 1) = $2 || '/')`, archive.RecordClass, source).Scan(&ok)
 	return ok, err
 }

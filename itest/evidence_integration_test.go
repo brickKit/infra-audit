@@ -1,6 +1,6 @@
 //go:build integration
 
-package audit
+package itest
 
 import (
 	"bytes"
@@ -11,6 +11,10 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	audit "github.com/brickKit/infra-audit/v3/audit"
+
+	core "github.com/brickKit/infra-audit/v3/internal/core"
 
 	"github.com/brickKit/be-sdk-go/v3/canon"
 	"github.com/brickKit/be-sdk-go/v3/config"
@@ -70,8 +74,8 @@ func TestTheEvidenceStore(t *testing.T) {
 	require.NoError(t, err)
 	w := sectest.New(t)
 	portFree(t, itPort, itSystem)
-	env := w.Env(t, ID)
-	for k, v := range map[string]string{"COMPONENT_ID": ID, "COMPONENT_VERSION": Version, "PORT": itPort, "STOP_DRAIN_DELAY": "50ms",
+	env := w.Env(t, core.ID)
+	for k, v := range map[string]string{"COMPONENT_ID": core.ID, "COMPONENT_VERSION": audit.Version, "PORT": itPort, "STOP_DRAIN_DELAY": "50ms",
 		"PG_HOST": "localhost", "PG_DATABASE": itDB, "PG_USER": "postgres", "PG_PASSWORD": pgPassword, "PG_SCHEMA": evSchema,
 		"PG_OWNER_USER": "postgres", "PG_OWNER_PASSWORD": pgPassword} {
 		env[k] = v
@@ -86,10 +90,10 @@ func TestTheEvidenceStore(t *testing.T) {
 	})
 	migrate := opts
 	migrate.Args = []string{"migrate"}
-	require.Equal(t, launcher.ExitOK, launcher.Run(ctx, Definition(), migrate))
+	require.Equal(t, launcher.ExitOK, launcher.Run(ctx, audit.Definition(), migrate))
 	sctx, stop := context.WithCancel(ctx)
 	done := make(chan int, 1)
-	go func() { done <- launcher.Run(sctx, Definition(), opts) }()
+	go func() { done <- launcher.Run(sctx, audit.Definition(), opts) }()
 	defer func() { stop(); <-done }()
 	require.Eventually(t, func() bool {
 		r, err := http.Get(itBase + "/readyz")
@@ -101,12 +105,12 @@ func TestTheEvidenceStore(t *testing.T) {
 
 	client := func(component string) auditv3.EvidenceServiceClient {
 		tls := w.TLS(t, component)
-		conn, err := grpc.NewClient(itSystem, grpc.WithTransportCredentials(credentials.NewTLS(tls.ClientConfig(ID))))
+		conn, err := grpc.NewClient(itSystem, grpc.WithTransportCredentials(credentials.NewTLS(tls.ClientConfig(core.ID))))
 		require.NoError(t, err)
 		t.Cleanup(func() { conn.Close() })
 		return auditv3.NewEvidenceServiceClient(conn)
 	}
-	orders, recover := client("demo/orders"), client(DefaultEvidenceReader)
+	orders, recover := client("demo/orders"), client(core.DefaultEvidenceReader)
 	appendAs := func(c auditv3.EvidenceServiceClient, recs ...*auditv3.Evidence) ([]*auditv3.EvidenceReceipt, error) {
 		cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
@@ -184,7 +188,7 @@ func TestTheEvidenceStore(t *testing.T) {
 	// a full recovery's checks (be-protocol chapter 14): the recovery tool only; the audit store never goes back, so
 	// what its own audit names is present
 	checks := func(component string) recoverypb.CheckServiceClient {
-		conn, err := grpc.NewClient(itSystem, grpc.WithTransportCredentials(credentials.NewTLS(w.TLS(t, component).ClientConfig(ID))))
+		conn, err := grpc.NewClient(itSystem, grpc.WithTransportCredentials(credentials.NewTLS(w.TLS(t, component).ClientConfig(core.ID))))
 		require.NoError(t, err)
 		t.Cleanup(func() { conn.Close() })
 		return recoverypb.NewCheckServiceClient(conn)
@@ -193,11 +197,11 @@ func TestTheEvidenceStore(t *testing.T) {
 	defer cancel()
 	_, err = checks("demo/orders").Check(cctx, &recoverypb.CheckRequest{Recovery: "r"})
 	assert.Equal(t, codes.PermissionDenied, status.Code(err), "%v", err)
-	res, err := checks(DefaultEvidenceReader).Check(cctx, &recoverypb.CheckRequest{Recovery: "r"})
+	res, err := checks(core.DefaultEvidenceReader).Check(cctx, &recoverypb.CheckRequest{Recovery: "r"})
 	require.NoError(t, err)
 	assert.NotEmpty(t, res.GetResults())
-	present, err := checks(DefaultEvidenceReader).Present(cctx, &recoverypb.PresentRequest{Recovery: "r",
-		Objects: []*recoverypb.ObjectRef{{Type: Records, Id: "any"}}})
+	present, err := checks(core.DefaultEvidenceReader).Present(cctx, &recoverypb.PresentRequest{Recovery: "r",
+		Objects: []*recoverypb.ObjectRef{{Type: core.Records, Id: "any"}}})
 	require.NoError(t, err)
 	assert.Equal(t, "present", present.GetAnswers()[0].GetAnswer())
 }

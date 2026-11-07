@@ -1,4 +1,4 @@
-package audit
+package evidence
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	core "github.com/brickKit/infra-audit/v3/internal/core"
 
 	"github.com/brickKit/be-sdk-go/v3/canon"
 	"github.com/brickKit/be-sdk-go/v3/db"
@@ -94,9 +96,9 @@ func sameSubject(a, b evidence) bool {
 
 // Append is EvidenceService.Append: the recorder is the caller (P12.11), each record kept once by (id, phase)
 // (P12.10), all in one transaction under the counter's lock, answered after the commit (P12.12).
-func (m *Module) Append(ctx context.Context, in *auditv3.AppendRequest) (*auditv3.AppendResponse, error) {
+func Append(m *core.Base, ctx context.Context, in *auditv3.AppendRequest) (*auditv3.AppendResponse, error) {
 	caller, _ := grpcx.Caller(ctx)
-	if len(in.GetRecords()) > MaxBatch {
+	if len(in.GetRecords()) > core.MaxBatch {
 		return nil, errs.New(errs.ReasonBatchTooLarge, "at most 500 records a call")
 	}
 	parsed := make([]evidence, len(in.GetRecords()))
@@ -109,9 +111,9 @@ func (m *Module) Append(ctx context.Context, in *auditv3.AppendRequest) (*auditv
 		}
 	}
 	out := &auditv3.AppendResponse{}
-	err := m.rt.DB.Tx(ctx, func(ctx context.Context, tx db.Tx) error {
+	err := m.RT.DB.Tx(ctx, func(ctx context.Context, tx db.Tx) error {
 		out.Receipts = out.Receipts[:0]
-		epoch, err := epochOf(ctx, tx)
+		epoch, err := core.EpochOf(ctx, tx)
 		if err != nil {
 			return err
 		}
@@ -120,7 +122,7 @@ func (m *Module) Append(ctx context.Context, in *auditv3.AppendRequest) (*auditv
 			return err
 		}
 		for i, r := range in.GetRecords() {
-			rc, err := m.keep(ctx, tx, epoch, &last, parsed[i], bad[i], r)
+			rc, err := keep(m, ctx, tx, epoch, &last, parsed[i], bad[i], r)
 			if err != nil {
 				return err
 			}
@@ -133,12 +135,12 @@ func (m *Module) Append(ctx context.Context, in *auditv3.AppendRequest) (*auditv
 }
 
 // keep stores one record or tells why not.
-func (m *Module) keep(ctx context.Context, tx db.Tx, epoch string, last *int64, e evidence, bad error,
+func keep(m *core.Base, ctx context.Context, tx db.Tx, epoch string, last *int64, e evidence, bad error,
 	r *auditv3.Evidence) (*auditv3.EvidenceReceipt, error) {
 	rc := &auditv3.EvidenceReceipt{Id: e.ID, Phase: e.Phase}
 	if bad != nil {
 		rc.Status = auditv3.EvidenceStatus_EVIDENCE_STATUS_INVALID
-		m.rt.Logger.Warn("an evidence record is not valid", "error", bad.Error())
+		m.RT.Logger.Warn("an evidence record is not valid", "error", bad.Error())
 		return rc, nil
 	}
 	var digest, gotEpoch string
@@ -150,7 +152,7 @@ func (m *Module) keep(ctx context.Context, tx db.Tx, epoch string, last *int64, 
 		rc.Status, rc.Epoch, rc.Seq = auditv3.EvidenceStatus_EVIDENCE_STATUS_DUPLICATE, gotEpoch, seq
 		return rc, nil
 	case err == nil:
-		return m.conflict(rc, e, "another digest under the same id and phase"), nil
+		return conflict(m, rc, e, "another digest under the same id and phase"), nil
 	case !errors.Is(err, pgx.ErrNoRows):
 		return nil, err
 	}
@@ -160,7 +162,7 @@ func (m *Module) keep(ctx context.Context, tx db.Tx, epoch string, last *int64, 
 		if err == nil {
 			var intent evidence
 			if json.Unmarshal(raw, &intent) != nil || !sameSubject(intent, e) {
-				return m.conflict(rc, e, "the conclusion does not match its intent"), nil
+				return conflict(m, rc, e, "the conclusion does not match its intent"), nil
 			}
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return nil, err
@@ -176,8 +178,8 @@ func (m *Module) keep(ctx context.Context, tx db.Tx, epoch string, last *int64, 
 	return rc, nil
 }
 
-func (m *Module) conflict(rc *auditv3.EvidenceReceipt, e evidence, why string) *auditv3.EvidenceReceipt {
-	m.rt.Logger.Error("an evidence record conflicts with what the store keeps: an integrity event", "event",
+func conflict(m *core.Base, rc *auditv3.EvidenceReceipt, e evidence, why string) *auditv3.EvidenceReceipt {
+	m.RT.Logger.Error("an evidence record conflicts with what the store keeps: an integrity event", "event",
 		"evidence_conflict", "id", e.ID, "phase", e.Phase, "recorder", e.Recorder.Component, "why", why)
 	rc.Status = auditv3.EvidenceStatus_EVIDENCE_STATUS_CONFLICT
 	return rc
@@ -185,13 +187,13 @@ func (m *Module) conflict(rc *auditv3.EvidenceReceipt, e evidence, why string) *
 
 // List is EvidenceService.List: the store's order after a position, 500 a page at most, by recorder and category
 // (P12.13); only the configured readers reach it (Services).
-func (m *Module) List(ctx context.Context, in *auditv3.ListRequest) (*auditv3.ListResponse, error) {
+func List(m *core.Base, ctx context.Context, in *auditv3.ListRequest) (*auditv3.ListResponse, error) {
 	limit := int(in.GetLimit())
-	if limit <= 0 || limit > MaxBatch {
-		limit = MaxBatch
+	if limit <= 0 || limit > core.MaxBatch {
+		limit = core.MaxBatch
 	}
 	out := &auditv3.ListResponse{}
-	err := m.rt.DB.Tx(ctx, func(ctx context.Context, tx db.Tx) error {
+	err := m.RT.DB.Tx(ctx, func(ctx context.Context, tx db.Tx) error {
 		out.Records = out.Records[:0]
 		rows, err := tx.Query(ctx, `SELECT record, digest, epoch, seq, received_at FROM audit_evidence
 			WHERE seq > $1 AND ($2 = '' OR recorder = $2) AND ($3 = '' OR category = $3) ORDER BY seq LIMIT $4`,

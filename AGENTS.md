@@ -4,23 +4,41 @@
 
 ## 代码地图
 
-| 位置 | 内容 |
+代码按业务模块分层。**先读这一节，再进目录**：每个代码目录都有自己的 `AGENTS.md`（同目录的 `CLAUDE.md` 让 Claude Code 读这个目录的文件时自动带上它），写这一层负责什么、不负责什么、每个文件、依赖谁、测在哪。
+
+| 目录 | 是什么 |
 | --- | --- |
-| `audit/audit.go` | 组件定义、配置键、系统面（接收与水位）、用户面（查询：按调用者的授予裁剪字段，查询本身先写一条敏感读取的审计，AU13） |
-| `audit/chain.go` | 链校验（协议 03 的 AU14）：单例作业按 `AUDIT_CHAIN_CHECK_INTERVAL` 逐个来源按存储顺序核对每条记录的字节与摘要、重算链、对照链头；断了就写 `audit_chain_break` 并记错误级日志 `audit_chain_broken` |
-| `audit/records.go` | `RecordService.List`（契约 alpha.3）：读者按发生时刻与类别列出审计记录，带来源纪元与产生序号，按存储位置分页（整套恢复第 9 步） |
-| `audit/recovery.go` | 整套恢复的核对：本组件审计过的对象一律答“还在”（审计存储不随其他组件回退） |
-| `audit/evidence.go` | 证据存储（P12.9–P12.13）：`EvidenceService.Append` 的核对与只收一次、`List` |
-| `audit/migrations/` | 表：记录、存储计数、纪元历史、来源、备份、链的断点 |
+| [`audit/`](audit/AGENTS.md) | 入口：组件定义、配置键与组装（系统面、用户面、链校验的作业、恢复核对都在这里登记，转给业务模块）；不写业务。`main.go` 与外壳只引用它 |
+| [`internal/`](internal/AGENTS.md) | 业务：下面的模块各一个包；模块之间的依赖表在它的 `AGENTS.md` |
+| [`itest/`](itest/AGENTS.md) | 集成测试，按业务流程分文件；它的 `AGENTS.md` 是测试索引 |
+| `audit/migrations/` | 表：记录、存储计数、纪元历史、来源、备份、链的断点、证据 |
 | `contract/` | 本组件发布的契约，是一个单独的模块 |
 | `docs/design.md` | 设计：术语、数据、规则、命令、实现状态、未决问题 |
 
+业务模块（`internal/` 下）：
+
+| 模块 | 负责 | 拥有的表 |
+| --- | --- | --- |
+| [`intake`](internal/intake/AGENTS.md) | 接收各组件的审计记录（`IntakeService.Submit`）：核对、只收一次、按来源的链、空位告警；水位（`Watermark`） | `audit_record`、`audit_counter`、`audit_epoch`、`audit_source`、`audit_backup` |
+| [`chain`](internal/chain/AGENTS.md) | 链校验（协议 03 的 AU14）：定期重算每个来源的链、对照链头，断了记下 | `audit_chain_break` |
+| [`evidence`](internal/evidence/AGENTS.md) | 证据存储（P12.9–P12.13）：`EvidenceService.Append` 的核对与只收一次、`List` | `audit_evidence`、`audit_evidence_counter` |
+| [`reading`](internal/reading/AGENTS.md) | 读审计记录：用户面的查询（按授予裁剪字段，查询本身先审计，AU13）；`RecordService.List`（给恢复工具，整套恢复第 9 步） | — |
+| [`archive`](internal/archive/AGENTS.md) | 审计记录作为冷热分层的数据类别（A158）：封存、按身份读归档、历史 | — |
+
+共用的：[`core`](internal/core/AGENTS.md)（名字与资源定义、纪元、链摘要、存储位置）。
+
+| 想改 | 从这里开始 | 然后 |
+| --- | --- | --- |
+| 接收的核对、查重、链 | `internal/intake` 的 `Submit`、`item` | `itest/intake_integration_test.go`；`docs/design.md` 的规则 |
+| 链校验（AU14） | `internal/chain` 的 `ChainCheck`、`verifyChain` | `itest/chain_integration_test.go` |
+| 查询的字段裁剪与审计（AU13） | `internal/reading` 的 `Query` | `itest/reading_integration_test.go` |
+| 证据的类别与核对 | `internal/evidence` 的 `Categories`、`parseEvidence`、`Append` | `itest/evidence_integration_test.go`；类别与协议对照的单元测试 |
+| 审计记录的保留与转层 | `internal/archive` 的 `RecordsClass` | `itest/archive_integration_test.go` |
+
 ## 构建与测试
 
-- `go test ./...`：单元测试，覆盖链摘要与合并安全。
-- `go test -tags integration ./audit/`：
-  - 依赖：本机的 PostgreSQL（环境变量 `AUDIT_IT_PG_PASSWORD`），以及 be-sdk-go 的 `sectest` 测试部署；
-  - 覆盖：经 SDK 自己的发送器转运；幂等、冲突、不合格与空位；链摘要；水位；停下再起；受授权保护的查询；证据存储（`evidence_integration_test.go`：重复、冲突、结论对意图、冒名的记录者、读者、顺序与分页）。
+- `go test ./...`：单元测试：链摘要（`internal/core`）、证据的类别与协议一致（`internal/evidence`）、清单与合并安全（`audit/`）。
+- `go test -count=1 -tags integration ./itest/`：真实的 PostgreSQL（环境变量 `AUDIT_IT_PG_PASSWORD`）与 be-sdk-go 的 `sectest`；每个文件测哪条流程，在 [itest/AGENTS.md](itest/AGENTS.md)。
 - `brickkit lint`
 
 ## 设计取舍
