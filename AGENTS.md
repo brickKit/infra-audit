@@ -37,8 +37,8 @@
 
 ## 构建与测试
 
-- `go test ./...`：单元测试：链摘要（`internal/core`）、证据的类别与协议一致（`internal/evidence`）、清单与合并安全（`audit/`）。
-- `go test -count=1 -tags integration ./itest/`：真实的 PostgreSQL（环境变量 `AUDIT_IT_PG_PASSWORD`）与 be-sdk-go 的 `sectest`；每个文件测哪条流程，在 [itest/AGENTS.md](itest/AGENTS.md)。
+- `make test`（`go vet ./... && go test ./...`）：单元测试：链摘要（`internal/core`）、证据的类别与协议一致（`internal/evidence`）、清单与合并安全（`audit/`，查入口与 `internal/` 下全部包）。
+- `make test-integration`（`go test -count=1 -tags integration ./itest/`）：真实的 PostgreSQL（环境变量 `AUDIT_IT_PG_PASSWORD`）与 be-sdk-go 的 `sectest`；每个文件测哪条流程，在 [itest/AGENTS.md](itest/AGENTS.md)。
 - `brickkit lint`
 
 ## 设计取舍

@@ -4,7 +4,7 @@
 
 ## 怎样跑
 
-- `go test -count=1 -tags integration ./itest/`，约 23 秒（链校验一步等作业几轮）。
+- `make test-integration`（`go test -count=1 -tags integration ./itest/`），约 23 秒（链校验一步等作业几轮）。
 - 环境变量：`AUDIT_IT_PG_PASSWORD`（be-postgres 的 postgres 超级用户口令，装配项目 `.env` 的 `POSTGRES_PASSWORD`）；库 `brickkit_test_db`；schema `audit_it` 每次重建。
 - 端口 28206、9206 要空着，被占时测试直接失败。
 - 三个测试：`TestAuditEndToEnd`（按下表的顺序跑各步，后面的步用前面送的记录，一步不能单独跑）、`TestTheEvidenceStore`、`TestTheAuditRecordsTier`（各自独立，可以 `-run` 单独跑）。
