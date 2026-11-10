@@ -59,6 +59,8 @@
 
 ## 实现状态
 
+3.0.38：be-sdk-go alpha.121（全系统同一个 SDK 版本；sectest 的授权组件替身答 CheckLinkChange 与 Administrators）
+
 3.0.37：be-sdk-go alpha.119（全系统同一个 SDK 版本；订阅最后一次投递处理之前先提交死信，进程中途退出时消息不再无声消失，P6.20）
 
 3.0.36：be-sdk-go alpha.117（全系统同一个 SDK 版本；SDK 加了预占的参与方 `reserve`，线协议第 16 章）
