@@ -59,6 +59,8 @@
 
 ## 实现状态
 
+3.0.39：{version}：be-sdk-go alpha.122（全系统同一个 SDK 版本；SDK 加了流程内核，线协议第 17 章，装配项目阶段计划 C7 的 P3）；行为不变。
+
 3.0.38：be-sdk-go alpha.121（全系统同一个 SDK 版本；sectest 的授权组件替身答 CheckLinkChange 与 Administrators）
 
 3.0.37：be-sdk-go alpha.119（全系统同一个 SDK 版本；订阅最后一次投递处理之前先提交死信，进程中途退出时消息不再无声消失，P6.20）
