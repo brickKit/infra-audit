@@ -185,10 +185,10 @@ func TestTheAuditRecordsTier(t *testing.T) {
 	// AU17: the retention has run and the deletion is approved, but a legal hold keeps the records
 	_, err = admin.Exec(ctx, "UPDATE be_tier_unit SET anchor_max = now() - interval '400 days' WHERE id = $1", sealed.Unit)
 	require.NoError(t, err)
-	code, body = call("POST", "/be/tiering/"+archive.RecordClass+"/approvals", `{"scope_kind": "class", "scope": "`+archive.RecordClass+
+	code, body = call("POST", "/api/audit/tiering/"+archive.RecordClass+"/approvals", `{"scope_kind": "class", "scope": "`+archive.RecordClass+
 		`", "reason": "the retention has run"}`)
 	require.Equal(t, http.StatusCreated, code, body)
-	code, body = call("POST", "/be/tiering/"+archive.RecordClass+"/holds", `{"scope_kind": "record", "scope": "`+
+	code, body = call("POST", "/api/audit/tiering/"+archive.RecordClass+"/holds", `{"scope_kind": "record", "scope": "`+
 		archive.RecordClass+"/demo/orders/"+old[0].ID+`", "source": "legal", "reason": "a court order"}`)
 	require.Equal(t, http.StatusCreated, code, body)
 	var hold struct{ ID string }
@@ -196,7 +196,7 @@ func TestTheAuditRecordsTier(t *testing.T) {
 	why, err = cat.Destroy(ctx, sealed.Unit)
 	require.NoError(t, err)
 	assert.Equal(t, []string{tiering.WhyHeld}, why, "AU17: held, not deleted")
-	code, body = call("POST", "/be/tiering/"+archive.RecordClass+"/holds/"+hold.ID+"/lift", "")
+	code, body = call("POST", "/api/audit/tiering/"+archive.RecordClass+"/holds/"+hold.ID+"/lift", "")
 	require.Equal(t, http.StatusNoContent, code, body)
 	why, err = cat.Destroy(ctx, sealed.Unit)
 	require.NoError(t, err)

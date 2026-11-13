@@ -49,7 +49,7 @@
 | 已备份水位 | 系统面 `IntakeService/Watermark` | `infra.audit.intake.watermark` |
 | 查询记录（按来源、操作，从新到旧，最多 500 条） | 用户面 `GET /api/audit/records` | `infra.audit.record.read` |
 | 查询全部历史（`history=true`：在线与归档的记录，时限内完整，否则答 202 与导出） | 用户面 `GET /api/audit/records?history=true` | `infra.audit.record.read` |
-| 法律保全、删除批准、导出状态（SDK 的标准路由） | 用户面 `/be/tiering/infra.audit.records/…` | `infra.audit.record.hold`、`infra.audit.record.approve_destruction`、`infra.audit.record.read` |
+| 法律保全、删除批准、导出状态（SDK 的标准路由） | 用户面 `/api/audit/tiering/infra.audit.records/…` | `infra.audit.record.hold`、`infra.audit.record.approve_destruction`、`infra.audit.record.read` |
 
 本组件发布的契约在 `contract/`（单独的模块）。
 
@@ -58,6 +58,8 @@
 数据库、身份成员、授权成员（只为查询）。接收记录不调用任何组件。本组件自己的审计记录也经 `AUDIT_GRPC_URL` 走同一个入口。
 
 ## 实现状态
+
+3.0.49：be-sdk-go alpha.134（线协议 alpha.131 的 P11.11：组件的公网前缀；装配项目阶段计划 C11 的设计考试）：冷热转层的管理路由从 `/be/tiering/infra.audit.records/…` 移到 `/api/audit/tiering/infra.audit.records/…`（边缘按前缀路由，原路径不在任何组件的前缀下）。
 
 3.0.48：be-sdk-go alpha.133（全系统同一个 SDK 版本；SDK 按 C10 一致性考试修正：带放弃时刻的对外命令不转人工、出站错误不带查询串、意图可只写站内，线协议 alpha.130，装配项目阶段计划 C10）及随之连锁的版本；本组件行为不变。
 

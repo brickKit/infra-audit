@@ -46,7 +46,7 @@
 
 - 系统面：本仓库 `contract/` 的 `be.audit.v3.IntakeService/Submit` 与 `be.audit.v3.IntakeService/Watermark`；证据存储的 `be.audit.v3.EvidenceService/Append`（任何组件，只交自己的）与 `List`（`AUDIT_EVIDENCE_READERS`），契约 `contract/v3.0.0-alpha.2` 起；审计记录的 `be.audit.v3.RecordService/List`（同样的读者，整套恢复的损失范围），契约 `contract/v3.0.0-alpha.3` 起。模块 `github.com/brickKit/infra-audit/contract/v3`，标签 `contract/v3.…`；审计组件的义务写在 `contract/README.md`。
 - 用户面：`GET /api/audit/records?source=&operation=&limit=`，操作是 `infra.audit.record.read`，按收到的时间从新到旧，最多 500 条；加 `history=true` 读在线与归档的全部（时限内完整，否则答 202 与导出的身份）。
-- 用户面（SDK 的标准路由，3.0.30 起）：`POST /be/tiering/infra.audit.records/holds`、`…/holds/{id}/lift`（`infra.audit.record.hold`），`POST …/approvals`、`…/approvals/{id}/withdraw`（`infra.audit.record.approve_destruction`），`GET …/exports/{id}`（请求者本人）。
+- 用户面（SDK 的标准路由，3.0.30 起）：`POST /api/audit/tiering/infra.audit.records/holds`、`…/holds/{id}/lift`（`infra.audit.record.hold`），`POST …/approvals`、`…/approvals/{id}/withdraw`（`infra.audit.record.approve_destruction`），`GET …/exports/{id}`（请求者本人）。
 - 系统面：证据的重放 `be.evidence.v1.ReplayService/Replay`（`infra.audit.system.replay`，恢复工具），重新执行恢复点之后的保留期删除。
 
 ## 外壳声明

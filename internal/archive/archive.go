@@ -168,7 +168,7 @@ func Reader(m *core.Base) tiering.Reader {
 }
 
 // History answers the query over every record of the filters, the archived ones included (P15.26): complete within
-// the limit, else 202 with the export it became (its status at /be/tiering/infra.audit.records/exports/{id}); the
+// the limit, else 202 with the export it became (its status at /api/audit/tiering/infra.audit.records/exports/{id}); the
 // query is audited as a sensitive read before anything is released, as the online one.
 func History(m *core.Base, c *httpx.Context, ctx context.Context, s *sdkauthz.Subject) error {
 	params, _ := json.Marshal(historyParams{Source: c.Query("source"), Operation: c.Query("operation")})
